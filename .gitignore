@@ -1,0 +1,8 @@
+runs/
+sandbox-*/
+*.sid
+*.out.json
+*.err
+*.log
+.DS_Store
+*-baseline.sha
