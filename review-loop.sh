@@ -82,6 +82,23 @@ CODER_MODEL="${CODER_MODEL:-sonnet}"
 REVIEWER_MODEL="${REVIEWER_MODEL:-opus}"
 MAX_ROUNDS="${MAX_ROUNDS:-5}"
 
+# PERM_MODE: how the headless coder handles tool permissions.
+#   default  acceptEdits  — auto-approves Edits, but PROMPTS on Bash. In a
+#                           headless `claude -p` session there is no TTY to
+#                           answer that prompt, so the coder HANGS the moment it
+#                           needs Bash (git add / run tests). This is the silent
+#                           stall mode.
+#   YOLO=1   --dangerously-skip-permissions — never prompts, so the coder runs
+#                           tests + git add unattended. The commit-gate hook
+#                           still runs (PreToolUse hooks fire regardless), so the
+#                           coder STILL cannot commit — only prompts are skipped.
+if [ "${YOLO:-0}" = "1" ]; then
+  PERM_ARGS=(--dangerously-skip-permissions)
+  echo "YOLO=1 — coder/reviewer run with --dangerously-skip-permissions (no prompts; commit-gate hook still enforced)"
+else
+  PERM_ARGS=(--permission-mode acceptEdits)
+fi
+
 [ -x "$CLAUDE_BIN" ] || { echo "FATAL: claude binary not found at $CLAUDE_BIN" >&2; exit 1; }
 
 RUN_DIR="$RUNS_ROOT/run-$$"
@@ -116,7 +133,7 @@ run_claude() {
   "$CLAUDE_BIN" -p "$(cat "$promptfile")" \
       --model "$model" \
       --output-format json \
-      --permission-mode acceptEdits \
+      "${PERM_ARGS[@]}" \
       "${resume_args[@]+"${resume_args[@]}"}" "$@" > "$outfile" 2>"$RUN_DIR/$tag.err" || true
 
   # Persist session_id for next round; emit the result text.
@@ -225,8 +242,23 @@ EOF
   #     that ends in the behavioral check (e.g. make + go test + a tmux-drive that
   #     greps the rendered pane). Empty VERIFY_CMD = skip (LLM-judgment only).
   if [ -n "${VERIFY_CMD:-}" ]; then
-    echo "-- deterministic gate: running VERIFY_CMD --"
-    if bash -c "$VERIFY_CMD" > "$RUN_DIR/verify-$round.log" 2>&1; then
+    # E2-hardening: the gate must be UNFAKEABLE. E2 proved a coder can poison an
+    # in-repo gate (a fake pytest.py / conftest.py / sitecustomize.py that exits 0).
+    # Two defenses, on the FIRST round only (warn once):
+    #  (1) WARN if VERIFY_CMD references an in-repo test path — that gate is fakeable
+    #      (the coder can edit it). The gate should point at a HELD-OUT artifact.
+    #  (2) Run the gate from a CLEAN cwd with a scrubbed PYTHONPATH so a poisoned
+    #      file sitting in $REPO (sitecustomize/conftest/pytest shim) is not on the
+    #      import path. The operator's VERIFY_CMD `cd`s into the repo itself when it
+    #      legitimately needs to (e.g. `cd repo && go test`); we just don't START there.
+    if [ "$round" -eq 1 ]; then
+      case "$VERIFY_CMD" in
+        *test_*|*/tests/*|*pytest*|*conftest*)
+          echo "  ⚠ E2-WARNING: VERIFY_CMD references an in-repo test path — if the coder can edit it, the gate is FAKEABLE (E2). Prefer a held-out grader outside \$REPO." >&2 ;;
+      esac
+    fi
+    echo "-- deterministic gate: running VERIFY_CMD (clean cwd, scrubbed env) --"
+    if ( cd / && env -u PYTHONPATH -u PYTHONSTARTUP bash -c "$VERIFY_CMD" ) > "$RUN_DIR/verify-$round.log" 2>&1; then
       echo "  ✓ VERIFY_CMD passed (build/test/behavioral check green)"
     else
       echo "  ✗ VERIFY_CMD FAILED (exit $?) — auto-rejecting, feeding real output to coder"

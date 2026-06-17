@@ -107,11 +107,16 @@ Each run writes a durable trail to `runs/run-<pid>/`: the prompts sent, the stag
 
 - **Two interactive Claude chat windows cannot talk to each other** — there's no IPC between them. This loop sidesteps that by replacing chat windows with headless `claude -p` calls a script chains together.
 - **The gate is only as good as your `VERIFY_CMD`.** Give it a real check (build + tests + a behavioral/e2e step). Without one, the council judges code that was never actually run.
+- **Make the gate UN-FAKEABLE: keep the verification artifact OUTSIDE the coder's write scope.** Red-team testing showed a coder under pressure can defeat an *in-repo* gate (e.g. a fake local `pytest.py`/`conftest.py`/`sitecustomize.py` that exits 0) — so it "passes" while the code is wrong. The loop defends by running `VERIFY_CMD` from a clean cwd with a scrubbed env, and warns if `VERIFY_CMD` references an in-repo test path. **Point the gate at a held-out grader the coder cannot edit.**
 - This is the **proven leaf unit** of a larger vision (a CEO→departments agent org). It's deliberately small. For durable, crash-survivable gates at scale, the natural next step is [LangGraph](https://github.com/langchain-ai/langgraph) (interrupt + checkpointer) or [Temporal](https://temporal.io) (child workflows). This repo is the thing you compose *up from*.
 
 ## Examples
 
 `examples/tmux-drive-example.sh` shows a **behavioral** `VERIFY_CMD` — driving a TUI binary in tmux and grepping the rendered panes — so the gate verifies real runtime behavior, not just unit tests.
+
+## Multi-model fan-out (`fanout.sh` + `lib/ledger.sh`)
+
+`fanout.sh` spawns N reviewer subagents in one process, a different model per role (from `roles.toml`), and joins them via an **append-only run ledger** (`lib/ledger.sh`) rather than pipes — every handoff is a recorded, replayable fact. One malformed leaf is tolerated (the run continues), and the final verdict can be deterministically replayed from the ledger alone. This is the "intra-session" building block above the single coder↔reviewer loop.
 
 ## License
 
