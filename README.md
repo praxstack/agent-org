@@ -118,6 +118,33 @@ Each run writes a durable trail to `runs/run-<pid>/`: the prompts sent, the stag
 
 `fanout.sh` spawns N reviewer subagents in one process, a different model per role (from `roles.toml`), and joins them via an **append-only run ledger** (`lib/ledger.sh`) rather than pipes — every handoff is a recorded, replayable fact. One malformed leaf is tolerated (the run continues), and the final verdict can be deterministically replayed from the ledger alone. This is the "intra-session" building block above the single coder↔reviewer loop.
 
+## Task planner (`planner.sh`)
+
+`planner.sh` turns a natural-language task into a **typed, validated parallel-vs-stack DAG** — a structured plan that the rest of the system can schedule and execute without further human input. The planner asks a model to emit JSON nodes with `id / title / kind / deps / stage`, then runs a deterministic gate that enforces: well-formed JSON, unique IDs, known kinds/stages, resolvable deps, acyclicity (Kahn's algorithm), and the invariant that nodes marked `parallel` carry no deps. The gate is fail-closed: `UNPARSEABLE` output rejects the plan rather than letting a malformed DAG through. This is the C0 discipline applied one level up, to plans.
+
+```bash
+./planner.sh "implement dark-mode toggle with persistence"
+# → validated DAG JSON, ready for gstack-loop.sh
+```
+
+## Outer state machine (`gstack-loop.sh`)
+
+`gstack-loop.sh` is the coordinator that drives a full task from plan to delivery. It takes a validated DAG from `planner.sh`, layers it into topologically-sorted batches (independent nodes parallelized within a batch; dependent nodes serialized across batches), then for each node runs: expand → `gstack-review.sh` (the heterogeneous review council loop) → implement → review⇄fix until convergence. Fan-out happens only at genuinely independent batches; all writes remain single-threaded.
+
+```
+planner.sh "task"
+    │  validated DAG
+    ▼
+gstack-loop.sh
+    │  topological schedule (parallel batches → serial stages)
+    ▼
+  batch 1 ──▶ [node A ──▶ gstack-review ──▶ fix*] [node B ──▶ gstack-review ──▶ fix*]  (parallel)
+  batch 2 ──▶ [node C ──▶ gstack-review ──▶ fix*]                                       (serial)
+  …
+```
+
+Set `GSTACK_EXECUTE=1` to run real `gstack-review` stages per node; without it the loop announces the schedule as a dry run (useful for inspecting the plan before committing compute).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
