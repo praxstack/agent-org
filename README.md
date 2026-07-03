@@ -1,5 +1,7 @@
 # agent-org
 
+[![CI](https://github.com/praxstack/agent-org/actions/workflows/ci.yml/badge.svg)](https://github.com/praxstack/agent-org/actions/workflows/ci.yml)
+
 A tiny, dependency-light **reviewer↔coder gated loop** for autonomous coding with [Claude Code](https://docs.claude.com/en/docs/claude-code). One command runs a coder agent that *physically cannot commit*, a deterministic verification gate that runs your real build/tests itself (so an LLM can't fake "it passes"), and an optional multi-voice review council — looping until the work genuinely passes, then committing.
 
 It replaces babysitting two chat windows. You start it and walk away.
@@ -144,6 +146,33 @@ gstack-loop.sh
 ```
 
 Set `GSTACK_EXECUTE=1` to run real `gstack-review` stages per node; without it the loop announces the schedule as a dry run (useful for inspecting the plan before committing compute).
+
+Both `planner.sh --selftest` and `gstack-loop.sh --selftest` run offline, deterministic self-tests (8 gate malformation classes; topological-layering scheduler cases) — these are what CI runs.
+
+## Heterogeneous review council (`gstack-review.sh` + `lib/runner.sh` + `lib/verdict.sh`)
+
+`gstack-review.sh` runs the coder ⇄ **multi-family** review council ⇄ fix loop to convergence. Council members are declared per-lens in `review-panel.toml`:
+
+```toml
+correctness=claude:sonnet
+security=hermes
+simplicity=pi
+```
+
+Each lens is a *blind* voice from a potentially different agent family — `lib/runner.sh` dispatches a single "model token" to the right headless CLI (`claude:` / `hermes:` / `pi:` / `opencode:` / `codex:`; bare tokens default to claude), and `lib/verdict.sh` normalizes every family's output into one canonical `VOICE / VERDICT / FINDINGS` block, with `UNPARSEABLE` graded as FAIL — a voice that can't be parsed can never pass work. The chair is deterministic aggregation (PASS iff all voices PASS), not another LLM call.
+
+Why heterogeneous? Our E2 experiment found lens *coverage* drives recall, while model *diversity* buys independence — less-correlated blind spots across families. Declare the lenses you care about; mix the families you have installed.
+
+## Held-out gate (`lib/heldout-gate.sh`)
+
+The red-team finding (E2): an in-repo gate is fakeable — a coder under pressure will write a fake local `pytest.py`/`conftest.py`/`sitecustomize.py` that exits 0. `lib/heldout-gate.sh` packages the defense as a reusable primitive:
+
+```bash
+. lib/heldout-gate.sh
+heldout_gate /path/to/work_dir /path/OUTSIDE/work_dir/grader.sh
+```
+
+It runs a grader that lives **outside the coder's write scope**, from a clean cwd with a scrubbed env, and pre-flight-checks that the grader really was unreachable from the work tree (structural violation = exit 2, treated as worse than FAIL). This is constitution C0 — *the optimizer never has write access to its own objective function* — as code, not prose.
 
 ## License
 

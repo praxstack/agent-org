@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck (warning severity, whole tree)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck -S warning *.sh lib/*.sh hooks/*.sh examples/*.sh
+
+  selftests:
+    name: deterministic selftests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: planner gate selftest (8 malformation classes)
+        run: bash planner.sh --selftest
+      - name: gstack-loop scheduler selftest (topological layering)
+        run: bash gstack-loop.sh --selftest
+      - name: heldout-gate C0 contract (PASS / FAIL / structural-violation)
+        run: |
+          set -e
+          tmp="$(mktemp -d)"; mkdir -p "$tmp/work" "$tmp/outside"
+          printf '#!/bin/bash\necho "SCORE: 1.0"\n' > "$tmp/outside/good.sh"
+          printf '#!/bin/bash\necho "SCORE: 1.0"\n' > "$tmp/work/inside.sh"
+          printf '#!/bin/bash\necho boom\nexit 1\n' > "$tmp/outside/bad.sh"
+          chmod +x "$tmp"/outside/*.sh "$tmp"/work/*.sh
+          rc=0; bash -c ". lib/heldout-gate.sh; heldout_gate '$tmp/work' '$tmp/outside/good.sh'" || rc=$?
+          [ "$rc" -eq 0 ] || { echo "FAIL: held-out PASS case rc=$rc (want 0)"; exit 1; }
+          rc=0; bash -c ". lib/heldout-gate.sh; heldout_gate '$tmp/work' '$tmp/work/inside.sh'" || rc=$?
+          [ "$rc" -eq 2 ] || { echo "FAIL: in-scope grader rc=$rc (want 2 = C0 violation)"; exit 1; }
+          rc=0; bash -c ". lib/heldout-gate.sh; heldout_gate '$tmp/work' '$tmp/outside/bad.sh'" || rc=$?
+          [ "$rc" -eq 1 ] || { echo "FAIL: failing grader rc=$rc (want 1)"; exit 1; }
+          echo "OK: heldout-gate contract holds (0/2/1)"
+      - name: verdict normalizer is FAIL-CLOSED (mixed verdicts never pass)
+        run: |
+          set -e
+          . lib/verdict.sh
+          t="$(mktemp -d)"
+          printf 'VOICE: x\nVERDICT: FAIL (was PASS in round 1)\nFINDINGS:\n- f\n' > "$t/leaf"
+          [ "$(verdict_token "$t/leaf")" = "FAIL" ] || { echo "FAIL-OPEN: mixed verdict passed"; exit 1; }
+          printf 'VOICE: x\nVERDICT: wibble\nFINDINGS:\n' > "$t/leaf"
+          [ "$(verdict_token "$t/leaf")" = "UNPARSEABLE" ] || { echo "FAIL: junk not UNPARSEABLE"; exit 1; }
+          printf 'VOICE: a\nVERDICT: PASS\nFINDINGS:\n' > "$t/l1"
+          printf 'VOICE: b\nVERDICT: FAIL\nFINDINGS:\n' > "$t/l2"
+          [ "$(verdict_aggregate "$t/l1" "$t/l2")" = "FAIL" ] || { echo "FAIL: aggregate not strict"; exit 1; }
+          echo "OK: verdict contract fail-closed"
+      - name: bash -n syntax gate on every script
+        run: |
+          set -e
+          for f in *.sh lib/*.sh hooks/*.sh examples/*.sh; do
+            bash -n "$f" && echo "syntax OK: $f"
+          done
+
+  gate-smoke:
+    name: commit-block hook smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hook blocks git commit / allows safe commands (PreToolUse contract)
+        run: |
+          set -e
+          # Contract: JSON tool-call on stdin; exit 2 = BLOCK, exit 0 = allow.
+          rc=0
+          printf '%s' '{"tool_input":{"command":"git commit -m x"}}' | bash hooks/block-commit.sh || rc=$?
+          [ "$rc" -eq 2 ] || { echo "FAIL: git commit not blocked (rc=$rc)"; exit 1; }
+          echo "OK: git commit blocked (exit 2)"
+          rc=0
+          printf '%s' '{"tool_input":{"command":"git push origin main"}}' | bash hooks/block-commit.sh || rc=$?
+          [ "$rc" -eq 2 ] || { echo "FAIL: git push not blocked (rc=$rc)"; exit 1; }
+          echo "OK: git push blocked (exit 2)"
+          printf '%s' '{"tool_input":{"command":"pytest -q"}}' | bash hooks/block-commit.sh \
+            && echo "OK: safe command allowed (exit 0)" \
+            || { echo "FAIL: safe command was blocked"; exit 1; }
