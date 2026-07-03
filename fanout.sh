@@ -15,6 +15,8 @@ CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude 2>/dev/null || echo "$HOME/.local/
 CONCURRENCY="${FANOUT_CONCURRENCY:-3}"   # bounded (failure-mode research: ≤3)
 
 PROMPT_FILE="${1:?prompt file}"; RUN_ID="${2:?run_id}"; ROLES="${3:-$SCRIPT_DIR/roles.toml}"
+# fail-closed: RUN_ID names a dir UNDER the runs root — no separators, no traversal
+case "$RUN_ID" in */*|*..*|"") echo "FATAL: invalid run_id '$RUN_ID' (no '/', no '..')" >&2; exit 2 ;; esac
 RUN_DIR="${AGENT_ORG_RUNS:-/tmp}/$RUN_ID"; mkdir -p "$RUN_DIR"
 ledger_init "$RUN_ID" "$RUN_DIR/ledger.jsonl"
 
