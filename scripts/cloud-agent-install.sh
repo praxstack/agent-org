@@ -5,24 +5,23 @@ set -euo pipefail
 # Resolve repo root even when invoked via absolute path from multi-root env install.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-export PATH="${HOME}/.bun/bin:${PATH}"
 
-if ! command -v bun >/dev/null 2>&1; then
-  curl -fsSL https://bun.sh/install | bash || true
-  export PATH="${HOME}/.bun/bin:${PATH}"
-fi
-
-if ! command -v rsync >/dev/null 2>&1; then
-  if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update -qq && sudo apt-get install -y -qq rsync
+require_command() {
+  local cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
   fi
-fi
-
-if ! command -v jq >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update -qq && sudo apt-get install -y -qq jq
+    sudo apt-get update -qq && sudo apt-get install -y -qq "$cmd"
   fi
-fi
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "[cloud-agent-install] ERROR: required command not found: $cmd" >&2
+    exit 1
+  fi
+}
+
+require_command rsync
+require_command git
 
 sync_home_from_repo() {
   local repo_root="$1"
@@ -30,7 +29,7 @@ sync_home_from_repo() {
   [[ -d "$src" ]] || return 0
   for dest in "${HOME}/.claude/skills" "${HOME}/.cursor/skills" "${HOME}/.agents/skills"; do
     mkdir -p "$dest"
-    rsync -a \
+    rsync -a --delete \
       --exclude 'INDEX.txt' \
       --exclude 'SKILL-PACKS.md' \
       "${src}/" "${dest}/"
@@ -41,9 +40,14 @@ sync_home_from_repo() {
   done
 }
 
+needs_skill_install() {
+  local repo_root="$1"
+  [[ ! -f "${repo_root}/.claude/skills/INDEX.txt" ]] || [[ ! -s "${repo_root}/.claude/skills/INDEX.txt" ]]
+}
+
 bootstrap_repo() {
   local repo_root="$1"
-  if [[ ! -f "${repo_root}/.claude/skills/INDEX.txt" ]] || [[ ! -s "${repo_root}/.claude/skills/INDEX.txt" ]]; then
+  if needs_skill_install "$repo_root"; then
     if [[ -x "${repo_root}/scripts/install-skill-packs.sh" ]]; then
       "${repo_root}/scripts/install-skill-packs.sh"
     fi
@@ -57,7 +61,7 @@ bootstrap_repo "$ROOT"
 
 SIBLING="$(cd "${ROOT}/.." && pwd)/agent-org-workspace"
 if [[ -d "$SIBLING" && "$SIBLING" != "$ROOT" ]]; then
-  if [[ ! -f "${SIBLING}/.claude/skills/INDEX.txt" ]]; then
+  if needs_skill_install "$SIBLING"; then
     mkdir -p "${SIBLING}/.claude/skills" "${SIBLING}/.agents/skills" "${SIBLING}/.agnets/skills"
     rsync -a "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
     rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agents/skills/"
