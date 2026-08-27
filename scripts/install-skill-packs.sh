@@ -42,6 +42,7 @@ copy_skill_dir() {
       --exclude '.git' \
       --exclude 'node_modules' \
       --exclude 'dist' \
+      --exclude '__tests__' \
       --exclude '*.binary' \
       --exclude '*.dylib' \
       --exclude '*.so' \
