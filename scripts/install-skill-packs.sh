@@ -3,9 +3,8 @@
 # Idempotent. Safe for Cloud Agent install scripts.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CACHE="${SKILL_PACK_CACHE:-/tmp/skill-packs}"
-STAGING="${SKILL_STAGING:-/tmp/skill-staging}"
 HOME_CLAUDE="${HOME}/.claude/skills"
 HOME_CURSOR="${HOME}/.cursor/skills"
 HOME_AGENTS="${HOME}/.agents/skills"
@@ -22,8 +21,8 @@ log() { printf '[skill-packs] %s\n' "$*"; }
 need_git_clone() {
   local url="$1" dest="$2"
   if [[ -d "${dest}/.git" ]]; then
-    git -C "$dest" fetch --depth 1 origin HEAD >/dev/null 2>&1 || true
-    git -C "$dest" reset --hard FETCH_HEAD >/dev/null 2>&1 || true
+    git -C "$dest" fetch --depth 1 origin HEAD
+    git -C "$dest" reset --hard FETCH_HEAD
   else
     rm -rf "$dest"
     git clone --depth 1 --single-branch "$url" "$dest"
@@ -156,7 +155,6 @@ install_pstack() {
 
 install_project_extras() {
   # High-value for agent-org: gated loops, CLI control, PR/review workflows
-  local extra
   # cursor-team-kit
   for d in "${CACHE}/cursor-plugins/cursor-team-kit/skills"/*; do
     [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
@@ -181,6 +179,26 @@ install_project_extras() {
   for d in "${CACHE}/cursor-plugins/cli-for-agent/skills"/*; do
     [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
     copy_skill_dir "$d" "cursor-$(basename "$d")"
+  done
+}
+
+prune_stale_skills() {
+  local index="${ROOT}/.claude/skills/INDEX.txt"
+  local dest_root skill_dir skill_name
+  [[ -f "$index" ]] || return 0
+  for dest_root in "${REPO_TARGETS[@]}"; do
+    [[ -d "$dest_root" ]] || continue
+    for skill_dir in "${dest_root}"/*; do
+      [[ -d "$skill_dir" ]] || continue
+      skill_name="$(basename "$skill_dir")"
+      case "$skill_name" in
+        INDEX.txt|SKILL-PACKS.md) continue ;;
+      esac
+      if ! grep -qxF "$skill_name" "$index"; then
+        log "prune stale skill: ${skill_name}"
+        rm -rf "$skill_dir"
+      fi
+    done
   done
 }
 
@@ -257,6 +275,7 @@ main() {
   find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | sort > "${ROOT}/.claude/skills/INDEX.txt"
   cp "${ROOT}/.claude/skills/INDEX.txt" "${ROOT}/.agents/skills/INDEX.txt"
   cp "${ROOT}/.claude/skills/INDEX.txt" "${ROOT}/.agnets/skills/INDEX.txt"
+  prune_stale_skills
 }
 
 main "$@"
