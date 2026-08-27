@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Cloud Agent install — idempotent bootstrap for praxstack/agent-org (+ sibling workspace)
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Resolve repo root even when invoked via absolute path from multi-root env install.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export PATH="${HOME}/.bun/bin:${PATH}"
 
 if ! command -v bun >/dev/null 2>&1; then
@@ -52,19 +55,15 @@ bootstrap_repo() {
 
 bootstrap_repo "$ROOT"
 
-# Sibling workspace checkout (multi-root Cloud Agent environments)
 SIBLING="$(cd "${ROOT}/.." && pwd)/agent-org-workspace"
 if [[ -d "$SIBLING" && "$SIBLING" != "$ROOT" ]]; then
-  if [[ -x "${SIBLING}/scripts/cloud-agent-install.sh" && "$SIBLING" != "$ROOT" ]]; then
-    # Avoid recursion: only sync if workspace already has skills or copy from primary
-    if [[ ! -f "${SIBLING}/.claude/skills/INDEX.txt" ]]; then
-      mkdir -p "${SIBLING}/.claude/skills" "${SIBLING}/.agents/skills" "${SIBLING}/.agnets/skills"
-      rsync -a "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
-      rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agents/skills/"
-      rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agnets/skills/"
-    fi
-    sync_home_from_repo "$SIBLING"
+  if [[ ! -f "${SIBLING}/.claude/skills/INDEX.txt" ]]; then
+    mkdir -p "${SIBLING}/.claude/skills" "${SIBLING}/.agents/skills" "${SIBLING}/.agnets/skills"
+    rsync -a "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
+    rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agents/skills/"
+    rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agnets/skills/"
   fi
+  sync_home_from_repo "$SIBLING"
 fi
 
 echo "[cloud-agent-install] home mirrors: claude=$(find "${HOME}/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') cursor=$(find "${HOME}/.cursor/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
