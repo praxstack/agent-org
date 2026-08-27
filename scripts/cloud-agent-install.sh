@@ -5,13 +5,6 @@ set -euo pipefail
 # Resolve repo root even when invoked via absolute path from multi-root env install.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-export PATH="${HOME}/.bun/bin:${PATH}"
-
-if ! command -v bun >/dev/null 2>&1; then
-  curl -fsSL https://bun.sh/install | bash || true
-  export PATH="${HOME}/.bun/bin:${PATH}"
-fi
-
 if ! command -v rsync >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
     sudo apt-get update -qq && sudo apt-get install -y -qq rsync
@@ -57,7 +50,7 @@ bootstrap_repo "$ROOT"
 
 SIBLING="$(cd "${ROOT}/.." && pwd)/agent-org-workspace"
 if [[ -d "$SIBLING" && "$SIBLING" != "$ROOT" ]]; then
-  if [[ ! -f "${SIBLING}/.claude/skills/INDEX.txt" ]]; then
+  if [[ ! -f "${SIBLING}/.claude/skills/INDEX.txt" ]] || [[ ! -s "${SIBLING}/.claude/skills/INDEX.txt" ]]; then
     mkdir -p "${SIBLING}/.claude/skills" "${SIBLING}/.agents/skills" "${SIBLING}/.agnets/skills"
     rsync -a "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
     rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agents/skills/"
