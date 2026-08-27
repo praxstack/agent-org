@@ -21,7 +21,12 @@ log() { printf '[skill-packs] %s\n' "$*"; }
 need_git_clone() {
   local url="$1" dest="$2"
   if [[ -d "${dest}/.git" ]]; then
-    git -C "$dest" fetch --depth 1 origin HEAD
+    if ! git -C "$dest" fetch --depth 1 origin HEAD; then
+      log "WARN: fetch failed for ${dest}; re-cloning"
+      rm -rf "$dest"
+      git clone --depth 1 --single-branch "$url" "$dest"
+      return
+    fi
     git -C "$dest" reset --hard FETCH_HEAD
   else
     rm -rf "$dest"
@@ -245,16 +250,23 @@ MANIFEST
   done
 }
 
-main() {
-  # Ensure rsync exists
-  if ! command -v rsync >/dev/null 2>&1; then
-    if command -v apt-get >/dev/null 2>&1; then
-      sudo apt-get update -qq && sudo apt-get install -y -qq rsync
-    else
-      log "ERROR: rsync required"
-      exit 1
-    fi
+require_command() {
+  local cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
   fi
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq "$cmd"
+  fi
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    log "ERROR: required command not found: $cmd"
+    exit 1
+  fi
+}
+
+main() {
+  require_command rsync
+  require_command git
 
   ensure_cache
   log "Installing gstack (slim)…"
