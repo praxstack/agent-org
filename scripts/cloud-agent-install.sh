@@ -40,6 +40,7 @@ sync_home_from_repo() {
     --exclude 'INDEX.txt' \
     --exclude 'SKILL-PACKS.md' \
     --exclude 'gstack/' \
+    --exclude 'gstack-*/' \
     "${src}/" "${HOME}/.cursor/skills/"
   for dest in "${repo_root}/.agents/skills" "${repo_root}/.agnets/skills"; do
     mkdir -p "$dest"

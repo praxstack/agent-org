@@ -31,9 +31,22 @@ ensure_gstack_source() {
   git clone --depth 1 --single-branch https://github.com/garrytan/gstack.git "$GSTACK_REPO"
 }
 
+clear_vendored_gstack_skills() {
+  local d
+  for d in "${HOME}/.cursor/skills"/gstack-*; do
+    [[ -e "$d" ]] || continue
+    if [[ -L "$d" ]]; then
+      continue
+    fi
+    log "Removing vendored $(basename "$d") so native gstack can link generated skills"
+    rm -rf "$d"
+  done
+}
+
 install_gstack_cursor() {
   ensure_bun
   ensure_gstack_source
+  clear_vendored_gstack_skills
   log "Running gstack ./setup --host cursor --no-prefix (native runtime + skills)…"
   (
     cd "$GSTACK_REPO"

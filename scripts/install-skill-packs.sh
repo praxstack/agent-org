@@ -47,6 +47,10 @@ copy_skill_dir() {
   local skill_md="${src}/SKILL.md"
   [[ -f "$skill_md" ]] || return 0
   for dest_root in "${REPO_TARGETS[@]}" "$HOME_CLAUDE" "$HOME_CURSOR" "$HOME_AGENTS"; do
+    # gstack-* in repo for discovery; native ./setup owns ~/.cursor/skills/gstack-* links.
+    if [[ "$dest_root" == "$HOME_CURSOR" && "$name" == gstack-* ]]; then
+      continue
+    fi
     mkdir -p "${dest_root}/${name}"
     # Copy skill markdown + small supporting files; skip heavy/binaries
     rsync -a --delete \
