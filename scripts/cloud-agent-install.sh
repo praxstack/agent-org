@@ -27,7 +27,7 @@ sync_home_from_repo() {
   local repo_root="$1"
   local src="${repo_root}/.claude/skills"
   [[ -d "$src" ]] || return 0
-  for dest in "${HOME}/.claude/skills" "${HOME}/.cursor/skills" "${HOME}/.agents/skills"; do
+  for dest in "${HOME}/.claude/skills" "${HOME}/.agents/skills"; do
     mkdir -p "$dest"
     rsync -a --delete \
       --exclude 'INDEX.txt' \
@@ -35,6 +35,15 @@ sync_home_from_repo() {
       --exclude 'SKILL-ARCHITECTURE.md' \
       "${src}/" "${dest}/"
   done
+  # Cursor: preserve gstack native runtime root (not vendored into repo).
+  mkdir -p "${HOME}/.cursor/skills"
+  rsync -a --delete \
+    --exclude 'INDEX.txt' \
+    --exclude 'SKILL-PACKS.md' \
+    --exclude 'SKILL-ARCHITECTURE.md' \
+    --exclude 'gstack/' \
+    --exclude 'gstack-*/' \
+    "${src}/" "${HOME}/.cursor/skills/"
   for dest in "${repo_root}/.agents/skills" "${repo_root}/.agnets/skills"; do
     mkdir -p "$dest"
     rsync -a --delete "${src}/" "$dest/"
@@ -65,7 +74,7 @@ if [[ -d "$SIBLING" && "$SIBLING" != "$ROOT" ]]; then
   # Always mirror primary repo skills into sibling (keeps workspace in sync after updates)
   if [[ -d "${ROOT}/.claude/skills" ]]; then
     mkdir -p "${SIBLING}/.claude/skills" "${SIBLING}/.agents/skills" "${SIBLING}/.agnets/skills"
-    rsync -a "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
+    rsync -a --delete "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
     rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agents/skills/"
     rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agnets/skills/"
     if [[ -f "${ROOT}/.claude/skills/INDEX.txt" ]]; then
@@ -75,6 +84,13 @@ if [[ -d "$SIBLING" && "$SIBLING" != "$ROOT" ]]; then
     fi
   fi
   sync_home_from_repo "$SIBLING"
+fi
+
+if [[ -x "${ROOT}/scripts/install-native-runtimes.sh" ]]; then
+  echo "[cloud-agent-install] Installing native skill runtimes (gstack for Cursor)…"
+  "${ROOT}/scripts/install-native-runtimes.sh" cursor || {
+    echo "[cloud-agent-install] WARN: native runtime install failed; vendored gstack-* skills still available" >&2
+  }
 fi
 
 echo "[cloud-agent-install] home mirrors: claude=$(find "${HOME}/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') cursor=$(find "${HOME}/.cursor/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
