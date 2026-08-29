@@ -70,6 +70,15 @@ ensure_cache() {
   need_git_clone https://github.com/mattpocock/skills.git "${CACHE}/mattpocock-skills"
   need_git_clone https://github.com/backnotprop/pstack.git "${CACHE}/pstack"
   need_git_clone https://github.com/cursor/plugins.git "${CACHE}/cursor-plugins"
+  need_git_clone https://github.com/shadcn/improve.git "${CACHE}/shadcn-improve"
+  need_git_clone https://github.com/coderabbitai/skills.git "${CACHE}/coderabbit-skills"
+  need_git_clone https://github.com/vercel-labs/agent-skills.git "${CACHE}/vercel-agent-skills"
+  need_git_clone https://github.com/anthropics/skills.git "${CACHE}/anthropic-skills"
+  need_git_clone https://github.com/vercel-labs/skills.git "${CACHE}/vercel-skills"
+  need_git_clone https://github.com/trailofbits/skills.git "${CACHE}/trailofbits"
+  need_git_clone https://github.com/vercel-labs/agent-browser.git "${CACHE}/agent-browser"
+  need_git_clone https://github.com/EveryInc/compound-engineering-plugin.git "${CACHE}/compound-engineering"
+  need_git_clone https://github.com/github/awesome-copilot.git "${CACHE}/awesome-copilot"
 }
 
 install_gstack_slim() {
@@ -158,6 +167,146 @@ install_pstack() {
   fi
 }
 
+install_shadcn_improve() {
+  local src="${CACHE}/shadcn-improve/skills/improve"
+  [[ -d "$src" && -f "${src}/SKILL.md" ]] || return 0
+  copy_skill_dir "$src" "shadcn-improve"
+}
+
+install_coderabbit() {
+  local d
+  for d in "${CACHE}/coderabbit-skills/skills"/*; do
+    [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
+    copy_skill_dir "$d" "coderabbit-$(basename "$d")"
+  done
+}
+
+install_vercel_agent_skills() {
+  local names=(
+    react-best-practices
+    web-design-guidelines
+    composition-patterns
+    deploy-to-vercel
+    vercel-cli-with-tokens
+    vercel-optimize
+    writing-guidelines
+    react-view-transitions
+  )
+  local name src
+  for name in "${names[@]}"; do
+    src="${CACHE}/vercel-agent-skills/skills/${name}"
+    [[ -d "$src" && -f "${src}/SKILL.md" ]] || continue
+    copy_skill_dir "$src" "vercel-${name}"
+  done
+}
+
+install_vercel_find_skills() {
+  local src="${CACHE}/vercel-skills/skills/find-skills"
+  [[ -d "$src" && -f "${src}/SKILL.md" ]] || return 0
+  copy_skill_dir "$src" "vercel-find-skills"
+}
+
+install_anthropic_dev() {
+  local names=(mcp-builder webapp-testing skill-creator frontend-design claude-api)
+  local name src
+  for name in "${names[@]}"; do
+    src="${CACHE}/anthropic-skills/skills/${name}"
+    [[ -d "$src" && -f "${src}/SKILL.md" ]] || continue
+    copy_skill_dir "$src" "anthropic-${name}"
+  done
+}
+
+install_trailofbits_promoted() {
+  # Security gate layer — promoted set (not all 80+ skills; install on demand via find-skills)
+  local plugins=(
+    differential-review
+    static-analysis
+    supply-chain-risk-auditor
+    insecure-defaults
+    property-based-testing
+    mutation-testing
+    spec-to-code-compliance
+    variant-analysis
+    second-opinion
+    code-improver
+    rust-review
+    modern-python
+    modern-cpp
+    audit-context-building
+    github-triage
+    sharp-edges
+    agentic-actions-auditor
+  )
+  local plugin skill_dir
+  for plugin in "${plugins[@]}"; do
+    for skill_dir in "${CACHE}/trailofbits/plugins/${plugin}/skills"/*; do
+      [[ -d "$skill_dir" && -f "${skill_dir}/SKILL.md" ]] || continue
+      copy_skill_dir "$skill_dir" "tob-$(basename "$skill_dir")"
+    done
+  done
+}
+
+install_agent_browser() {
+  local names=(agent-browser core)
+  local name src
+  for name in "${names[@]}"; do
+    for src in \
+      "${CACHE}/agent-browser/skills/${name}" \
+      "${CACHE}/agent-browser/skill-data/${name}"; do
+      [[ -d "$src" && -f "${src}/SKILL.md" ]] || continue
+      copy_skill_dir "$src" "browser-${name}"
+    done
+  done
+}
+
+install_compound_engineering() {
+  # Core compound loop — brainstorm → plan → work → review → compound
+  local names=(
+    ce-brainstorm
+    ce-plan
+    ce-work
+    ce-code-review
+    ce-compound
+    ce-handoff
+    ce-setup
+    ce-debug
+    ce-proof
+    ce-simplify-code
+    ce-resolve-pr-feedback
+  )
+  local name src
+  for name in "${names[@]}"; do
+    src="${CACHE}/compound-engineering/skills/${name}"
+    [[ -d "$src" && -f "${src}/SKILL.md" ]] || continue
+    copy_skill_dir "$src" "${name}"
+  done
+}
+
+install_awesome_copilot_promoted() {
+  # Toolbox shelf — promoted general dev workflows (not all 400+ Azure/D365 skills)
+  local names=(
+    acquire-codebase-knowledge
+    agentic-workflows
+    agent-governance
+    agent-supply-chain
+    ai-prompt-engineering-safety-review
+    breakdown-feature-implementation
+    breakdown-feature-prd
+    codebase-memory-mcp
+    create-readme
+    create-github-issue-feature-from-specification
+    generate-custom-instructions-from-codebase
+    github-actions-efficiency
+    create-agentsmd
+  )
+  local name src
+  for name in "${names[@]}"; do
+    src="${CACHE}/awesome-copilot/skills/${name}"
+    [[ -d "$src" && -f "${src}/SKILL.md" ]] || continue
+    copy_skill_dir "$src" "gh-${name}"
+  done
+}
+
 install_project_extras() {
   # High-value for agent-org: gated loops, CLI control, PR/review workflows
   # cursor-team-kit
@@ -184,6 +333,13 @@ install_project_extras() {
   for d in "${CACHE}/cursor-plugins/cli-for-agent/skills"/*; do
     [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
     copy_skill_dir "$d" "cursor-$(basename "$d")"
+  done
+  # teaching, create-plugin, agent-compatibility
+  for plugin in teaching create-plugin agent-compatibility; do
+    for d in "${CACHE}/cursor-plugins/${plugin}/skills"/*; do
+      [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
+      copy_skill_dir "$d" "cursor-$(basename "$d")"
+    done
   done
 }
 
@@ -225,7 +381,27 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `superpowers-*` | [obra/superpowers](https://github.com/obra/superpowers) | Full core methodology set |
 | `ctk-*` | [cursor/plugins/cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) | PR/CI/deslop/control-cli |
 | `ralph-loop*` | [cursor/plugins/ralph-loop](https://github.com/cursor/plugins/tree/main/ralph-loop) | Iterative autonomous loops |
-| `cursor-*` | orchestrate, continual-learning, cli-for-agent | Multi-agent / CLI extras |
+| `cursor-*` | orchestrate, continual-learning, cli-for-agent, teaching, create-plugin, agent-compatibility | Multi-agent / CLI / plugin authoring |
+| `shadcn-improve` | [shadcn/improve](https://github.com/shadcn/improve) | Read-only codebase audit + handoff plans |
+| `coderabbit-*` | [coderabbitai/skills](https://github.com/coderabbitai/skills) | PR review + autofix workflows |
+| `vercel-*` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills), [find-skills](https://github.com/vercel-labs/skills) | React/web/deploy + skill discovery |
+| `anthropic-*` | [anthropics/skills](https://github.com/anthropics/skills) | Slim dev set: MCP, testing, skill authoring |
+| `tob-*` | [trailofbits/skills](https://github.com/trailofbits/skills) | Security gate: diff review, CodeQL/Semgrep, supply chain |
+| `browser-*` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) | Real-browser QA after tests |
+| `ce-*` | [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) | Brainstorm → plan → work → review → compound |
+| `gh-*` | [github/awesome-copilot](https://github.com/github/awesome-copilot) | Promoted GitHub/agent workflows (not full 400+ set) |
+
+See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
+
+### Skipped / slimmed
+
+- **gstack**: iOS, browse binary, gbrain, heavy design assets
+- **trailofbits**: 80+ total; only promoted security gate set vendored
+- **awesome-copilot**: 400+ total; only general dev workflows vendored
+- **anthropics/skills**: creative/office-only packs (pdf, pptx, algorithmic-art)
+- **microsoft/skills**: too large — use `vercel-find-skills` + `npx skills add` on demand
+- **spec-kit**: CLI tool, not SKILL.md — install via `uv tool install specify-cli`
+- **Stack-specific** (install per project): aws/agent-toolkit-for-aws, cloudflare/skills, supabase/agent-skills
 
 ## Paths
 
@@ -247,6 +423,8 @@ MANIFEST
   for dest_root in "${ROOT}/.agents/skills" "${ROOT}/.agnets/skills"; do
     mkdir -p "$dest_root"
     cp "$manifest" "${dest_root}/SKILL-PACKS.md"
+    [[ -f "${ROOT}/.claude/skills/SKILL-ARCHITECTURE.md" ]] && \
+      cp "${ROOT}/.claude/skills/SKILL-ARCHITECTURE.md" "${dest_root}/SKILL-ARCHITECTURE.md"
   done
 }
 
@@ -277,6 +455,24 @@ main() {
   install_matt_pocock
   log "Installing pstack…"
   install_pstack
+  log "Installing shadcn/improve…"
+  install_shadcn_improve
+  log "Installing CodeRabbit skills…"
+  install_coderabbit
+  log "Installing Vercel agent skills (promoted)…"
+  install_vercel_agent_skills
+  log "Installing Vercel find-skills…"
+  install_vercel_find_skills
+  log "Installing Anthropic dev skills (slim)…"
+  install_anthropic_dev
+  log "Installing Trail of Bits security skills (promoted)…"
+  install_trailofbits_promoted
+  log "Installing agent-browser skills…"
+  install_agent_browser
+  log "Installing Compound Engineering core loop…"
+  install_compound_engineering
+  log "Installing GitHub awesome-copilot (promoted)…"
+  install_awesome_copilot_promoted
   log "Installing project extras…"
   install_project_extras
   write_manifest
