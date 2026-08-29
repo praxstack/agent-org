@@ -166,6 +166,12 @@ concurrent shard processes under a strict output contract — a shard that exits
 without bun's own terminal summary line, or a crashed worker, fails the run, so
 silent truncation can never report green. Pass `--verbose` to forward the full
 child stream; `--wall-timeout <secs>` overrides the per-shard kill deadline.
+`GSTACK_FREE_JOBS=<n>` overrides the shard count (digits only, loud on garbage),
+and `GSTACK_FREE_RETRY_FLAKY=1` opts into one serial retry pass for
+syscall-supervised sandboxes (off by default — dev boxes should see flakes).
+Working in a cloud sandbox? Run `scripts/sandbox-doctor.sh` once per boot to
+make the suite run green (details in
+[docs/TESTING_INTERNALS.md](docs/TESTING_INTERNALS.md)).
 Don't type bare `bun test` for the suite: it walks the whole repo, loads paid
 eval files, and misses the strict classifier. No API keys needed.
 
@@ -353,11 +359,11 @@ worth the review overhead.
 
 ## Multi-host development
 
-gstack generates SKILL.md files for 8 hosts from one set of `.tmpl` templates.
+gstack generates SKILL.md files for 10 hosts from one set of `.tmpl` templates.
 Each host is a typed config in `hosts/*.ts`. The generator reads these configs
 to produce host-appropriate output (different frontmatter, paths, tool names).
 
-**Supported hosts:** Claude (primary), Codex, Factory, Kiro, OpenCode, Slate, Cursor, OpenClaw.
+**Supported hosts:** Claude (primary), Codex, Factory, Kiro, OpenCode, Slate, Cursor, OpenClaw, Hermes, GBrain.
 
 ### Generating for all hosts
 
@@ -366,7 +372,7 @@ to produce host-appropriate output (different frontmatter, paths, tool names).
 bun run gen:skill-docs                    # Claude (default)
 bun run gen:skill-docs --host codex       # Codex
 bun run gen:skill-docs --host opencode    # OpenCode
-bun run gen:skill-docs --host all         # All 8 hosts
+bun run gen:skill-docs --host all         # All 10 hosts
 
 # Or use build, which does all hosts + compiles binaries
 bun run build

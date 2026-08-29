@@ -64,7 +64,7 @@ If `SKILL_PREFIX` is `"true"`, suggest/invoke `/gstack-*` names. Disk paths stay
 
 Branch on the skill-start STATUS lines, in this order:
 
-1. **`CONDUCTOR_SESSION: true` echoed** → do NOT call AskUserQuestion at all (neither native nor any `mcp__*__AskUserQuestion` variant): render EVERY decision brief as the **prose form** below and STOP. Proactive, not a failure reaction — Conductor disables native AUQ and its MCP variant is flaky (`[Tool result missing due to internal error]`). **Auto-decide preferences still apply first:** a surfaced `[plan-tune auto-decide] <id> → <option>` result means proceed with that option, no prose — enforced HERE since no tool call ever happens. Capture each Conductor prose brief with `bin/gstack-question-log` (the PostToolUse hook never fires on a prose path; `/plan-tune` learning depends on it).
+1. **`CONDUCTOR_SESSION: true` echoed** → do NOT call AskUserQuestion at all (neither native nor any `mcp__*__AskUserQuestion` variant): render EVERY decision brief as the **prose form** below and STOP. Proactive, not a failure reaction — Conductor disables native AUQ and its MCP variant is flaky (`[Tool result missing due to internal error]`). **Auto-decide preferences still apply first** (failure-fallback item 1 below): proceed with a surfaced auto-decide option, no prose — enforced HERE since no tool call ever happens. Capture each Conductor prose brief with `bin/gstack-question-log` (the PostToolUse hook never fires on a prose path; `/plan-tune` learning depends on it).
 2. **Any `mcp__*__AskUserQuestion` variant in your tool list** → prefer it (hosts may disable native via `--disallowedTools`; calling native there silently fails). Same shape, same decision-brief format.
 3. **Unavailable (no variant) OR a call fails** → do NOT silently auto-decide or write the decision to the plan file as a substitute; follow the **failure fallback** below.
 
@@ -73,7 +73,7 @@ Branch on the skill-start STATUS lines, in this order:
 Tell three outcomes apart:
 
 1. **Auto-decide denial (NOT a failure).** The result contains `[plan-tune auto-decide] <id> → <option>` — the preference hook working as designed. Proceed with that option. Do NOT retry, do NOT fall back to prose.
-2. **Genuine failure** — no variant in your tool list, OR the variant is present but the call returns an error / missing result (MCP transport error, empty result, host bug — e.g. Conductor's MCP AskUserQuestion is flaky and returns `[Tool result missing due to internal error]`).
+2. **Genuine failure** — no variant in your tool list, OR the variant is present but the call returns an error / missing result (MCP transport error, empty result, host bug — e.g. Conductor's flaky MCP variant, see Tool resolution above).
    - If it was present and **errored** (not absent), retry the SAME call **once** — but only if no answer could have surfaced (a missing-result error can arrive after the user already saw the question; retrying would double-prompt, so if it may have reached them, treat as pending, don't retry).
    - Then branch on `SESSION_KIND` (echoed by the preamble; empty/absent ⇒ `interactive`):
      - `spawned` → defer to the **Spawned session** block: auto-choose the recommended option. Never prose, never BLOCKED.
@@ -83,8 +83,8 @@ Tell three outcomes apart:
 **Prose fallback — render the decision brief as a markdown message, not a tool call.** Same information as the tool format below, different structure (paragraphs, not ✅/❌ bullets). It MUST surface this triad:
 
 1. **A clear ELI10 of the issue itself** — plain English on what's being decided and why it matters (the question, not per-choice), naming the stakes. Lead with it.
-2. **Completeness scores per choice** — explicit `Completeness: X/10` on EACH choice (10 complete, 7 happy-path, 3 shortcut); use the kind-note when options differ in kind not coverage, but never silently drop the score.
-3. **The recommendation and why** — a `Recommendation: <choice> because <reason>` line plus the `(recommended)` marker on that choice.
+2. **Completeness scores per choice** — explicit on EACH choice, per the Completeness rule in the Format section below; never silently drop the score.
+3. **The recommendation and why** — the `Recommendation: <choice> because <reason>` line plus the `(recommended)` marker on that choice.
 
 Layout: a `D<N>` title + a one-line note to reply with a letter (in Conductor this is the normal path; elsewhere it means AskUserQuestion was unavailable or errored); the issue ELI10; the Recommendation line; then ONE paragraph per choice carrying its `(recommended)` marker, its `Completeness: X/10`, and 2-4 sentences of reasoning — never a bare bullet list; a closing `Net:` line. Split chains / 5+ options: one prose block per per-option call, in sequence. Then STOP and wait — the user's typed answer is the decision. In plan mode this satisfies end-of-turn like a tool call.
 
@@ -118,6 +118,8 @@ D-numbering: first question in a skill invocation is `D1`; increment yourself. T
 ELI10 is always present, in plain English, not function names. Recommendation is ALWAYS present. Keep the `(recommended)` label; AUTO_DECIDE depends on it.
 
 Completeness: use `Completeness: N/10` only when options differ in coverage. 10 = complete, 7 = happy path, 3 = shortcut. If options differ in kind, write: `Note: options differ in kind, not coverage — no completeness score.`
+
+Accepted shortcuts leave a trail: when the user selects an option that is BOTH Completeness ≤ 7 AND a durable-scope call (architecture or scope-cut — never a turn-level choice), log it via `gstack-decision-log` with the ceiling and the upgrade trigger in the rationale, and — as part of implementing that option, same edit, no follow-up question — mark each cut corner in code with `gstack-shortcut(dec-<id>): <ceiling>, upgrade when <trigger>` in the language's comment syntax. Never agent-initiated: the marker exists only downstream of the user's explicit choice. /retro harvests these into a debt ledger, joined on the decision id.
 
 Pros / cons: use ✅ and ❌. Minimum 2 pros and 1 con per option when the choice is real; Minimum 40 characters per bullet. Hard-stop escape for one-way/destructive confirmations: `✅ No cons — this is a hard-stop choice`.
 
@@ -161,7 +163,7 @@ Before calling AskUserQuestion, verify:
 - [ ] (recommended) label on one option (even for neutral-posture)
 - [ ] Dual-scale effort labels on effort-bearing options (human / CC)
 - [ ] Net line closes the decision
-- [ ] You are calling the tool, not writing prose — unless `CONDUCTOR_SESSION: true` (then prose is the DEFAULT, not the tool) OR the documented failure fallback applies (then: prose with the mandatory triad — issue ELI10, per-choice Completeness, Recommendation + `(recommended)` — and a "reply with a letter" instruction, then STOP)
+- [ ] You are calling the tool, not writing prose — unless `CONDUCTOR_SESSION: true` (then prose is the DEFAULT, not the tool) OR the documented failure fallback applies (then: the prose fallback's mandatory triad + a "reply with a letter" instruction, then STOP)
 - [ ] Non-ASCII characters (CJK / accents) written directly, NOT \u-escaped
 - [ ] If you had 5+ options, you split (or batched into ≤4-groups) — did NOT drop any
 - [ ] If you split, you checked dependencies between options before firing the chain
@@ -212,6 +214,11 @@ GStack voice: Garry-shaped product and engineering judgment, compressed for runt
 
 Good: "auth.ts:47 returns undefined when the session cookie expires. Users hit a white screen. Fix: add a null check and redirect to /login. Two lines."
 Bad: "I've identified a potential issue in the authentication flow that may cause problems under certain conditions."
+
+**Bounded closer.** After completing work, report in at most a few short lines: what changed, what was skipped, what to watch. No feature tours, no unrequested design notes. If the explanation outgrows the change, cut the explanation. Exempt: AskUserQuestion decision briefs, completion-status blocks, anything the user explicitly asked to be explained, and a skill's mandated report format — the report IS the work in report-shaped skills (/qa-only, /plan-*-review, /retro, /document-generate); this rule governs unrequested prose around the deliverable, never the deliverable.
+
+Good closer: "Renamed the flag in 3 files, regenerated docs, tests green. Skipped the CLI alias (unused since v1.2); watch the Windows job."
+Bad closer: a tour of every edit, a restatement of the plan, and three paragraphs justifying choices nobody questioned.
 
 ## Context Recovery
 
@@ -341,6 +348,16 @@ Always flag anything that looks wrong — one sentence, what you noticed and its
 
 Before building anything unfamiliar, **search first.** See `$GSTACK_ROOT/ETHOS.md`.
 - **Layer 1** (tried and true) — don't reinvent. **Layer 2** (new and popular) — scrutinize. **Layer 3** (first principles) — prize above all.
+
+**The reuse ladder — before writing new code, stop at the first rung that holds:**
+1. A helper, util, or pattern already in this repo — re-implementing what's a few files over is the most common slop.
+2. The standard library.
+3. A native platform feature (CSS over JS, DB constraint over app code, `<input type="date">` over a picker lib).
+4. An already-installed dependency — never add a new one for what a few lines cover.
+
+Then build the complete version of what remains.
+
+**Bug fixes hit root cause, not symptom:** one guard in the shared function beats a guard in every caller — grep the callers, fix it once where they all route through.
 
 **Eureka:** When first-principles reasoning contradicts conventional wisdom, name it and log:
 ```bash
@@ -1802,6 +1819,7 @@ Based on the scope signals above, select which specialists to dispatch.
 5. **Data Migration** — if SCOPE_MIGRATIONS=true. Read `$GSTACK_ROOT/review/specialists/data-migration.md`
 6. **API Contract** — if SCOPE_API=true. Read `$GSTACK_ROOT/review/specialists/api-contract.md`
 7. **Design** — if SCOPE_FRONTEND=true. Use the existing design review checklist at `$GSTACK_ROOT/review/design-checklist.md`
+8. **Simplification** — if DIFF_LINES > 100. Read `$GSTACK_ROOT/review/specialists/simplification.md`. Advisory-only lens: hunts unrequested structure (hand-rolled stdlib, one-implementation abstractions, dependencies duplicating platform features), never coverage.
 
 ### Adaptive gating
 
@@ -1811,7 +1829,7 @@ For each conditional specialist that passed scope gating, check the `gstack-spec
 - If tagged `[GATE_CANDIDATE]` (0 findings in 10+ dispatches): skip it. Print: "[specialist] auto-gated (0 findings in N reviews)."
 - If tagged `[NEVER_GATE]`: always dispatch regardless of hit rate. Security and data-migration are insurance policy specialists — they should run even when silent.
 
-**Force flags:** If the user's prompt includes `--security`, `--performance`, `--testing`, `--maintainability`, `--data-migration`, `--api-contract`, `--design`, or `--all-specialists`, force-include that specialist regardless of gating.
+**Force flags:** If the user's prompt includes `--security`, `--performance`, `--testing`, `--maintainability`, `--data-migration`, `--api-contract`, `--design`, `--simplification`, or `--all-specialists`, force-include that specialist regardless of gating.
 
 Note which specialists were selected, gated, and skipped. Print the selection:
 "Dispatching N specialists: [names]. Skipped: [names] (scope not detected). Gated: [names] (0 findings in N+ reviews)."
@@ -1896,8 +1914,14 @@ Group findings by fingerprint. For findings sharing the same fingerprint:
 - Confidence 3-4: move to appendix (suppress from main findings)
 - Confidence 1-2: suppress entirely
 
+**Advisory carve-out (simplification specialist):**
+Findings with `"advisory": true` are excluded from BOTH the quality_score
+summation and the findings-count header below — they are structure suggestions,
+not defects, and must not make "5 findings … 10/10" look contradictory. In
+Fix-First they are ASK-only: NEVER auto-applied, even when mechanical.
+
 **Compute PR Quality Score:**
-After merging, compute the quality score:
+After merging, compute the quality score over NON-advisory findings only:
 `quality_score = max(0, 10 - (critical_count * 2 + informational_count * 0.5))`
 Cap at 10. Log this in the review result at the end.
 
@@ -1907,7 +1931,8 @@ Present the merged findings in the same format as the current review:
 ```
 SPECIALIST REVIEW: N findings (X critical, Y informational) from Z specialists
 
-[For each finding, in order: CRITICAL first, then INFORMATIONAL, sorted by confidence descending]
+[For each finding, in order: CRITICAL first, then INFORMATIONAL, sorted by confidence descending;
+ advisory findings last, each rendered with an [ADVISORY] label in place of the severity]
 [SEVERITY] (confidence: N/10, specialist: name) path:line — summary
   Fix: recommended fix
   [If MULTI-SPECIALIST CONFIRMED: show confirmation note]
@@ -1915,16 +1940,29 @@ SPECIALIST REVIEW: N findings (X critical, Y informational) from Z specialists
 PR Quality Score: X/10
 ```
 
+**Simplification footer (after the score line):**
+- If the simplification specialist was dispatched and returned findings, sum
+  their `lines_removable` values and print: `net: -N lines possible` (omit
+  findings without the field from the sum).
+- If it was dispatched and returned NO FINDINGS, print:
+  `Simplification: lean already — nothing to cut.`
+- If it was not dispatched, print neither line.
+
 These findings flow into the Fix-First flow (item 4) alongside the checklist pass (Step 9).
-The Fix-First heuristic applies identically — specialist findings follow the same AUTO-FIX vs ASK classification.
+The Fix-First heuristic applies identically — specialist findings follow the same AUTO-FIX vs ASK classification (except advisory findings, which are ASK-only per the carve-out above).
 
 **Compile per-specialist stats:**
 After merging findings, compile a `specialists` object for the review-log persist.
-For each specialist (testing, maintainability, security, performance, data-migration, api-contract, design, red-team):
+For each specialist (testing, maintainability, security, performance, data-migration, api-contract, design, simplification, red-team):
 - If dispatched: `{"dispatched": true, "findings": N, "critical": N, "informational": N}`
 - If skipped by scope: `{"dispatched": false, "reason": "scope"}`
 - If skipped by gating: `{"dispatched": false, "reason": "gated"}`
 - If not applicable (e.g., red-team not activated): omit from the object
+
+Advisory findings COUNT in the stats `findings` field — the advisory
+carve-out governs the quality score and the findings-count header only.
+Logging simplification's advisories as `findings: 0` would auto-gate the
+lens into permanent silence after 10 dispatches.
 
 Include the Design specialist even though it uses `design-checklist.md` instead of the specialist schema files.
 Remember these stats — you will need them for the review-log entry in Step 5.8.
@@ -2321,9 +2359,9 @@ stay agent judgment; the slot pick stays `gstack-next-version`.
 
 4. **Write the bump** (FRESH, or an approved rebump):
    ```bash
-   bun run $GSTACK_ROOT/bin/gstack-version-bump write --version "$NEW_VERSION"
+   bun run $GSTACK_ROOT/bin/gstack-version-bump write --version "$NEW_VERSION" --regen-digest
    ```
-   The CLI validates the version pattern (4-digit `MAJOR.MINOR.PATCH.MICRO`; 3-digit for repos whose pinned version source uses plain semver) and writes VERSION, the manifest, and the manifest's npm lockfiles (`package-lock.json` / `npm-shrinkwrap.json`) when they already exist — never created. The manifest is resolved as `--package-json-path` → `.gstack/package-json-path` → `./package.json`, so a repo whose only Node package lives in a subdirectory (`web/`, `app/`) is covered by a one-line pin instead of silently getting a VERSION-only bump. npm rejects 4-component versions, so the manifest and lockfiles carry the npm-valid 3-digit translation (`1.67.0.0` → `1.67.0`); VERSION stays the 4-digit source of truth and classify judges drift against the translated form. On a half-write it exits 3 — re-run, and classify will report DRIFT_STALE_PKG for `repair` to fix.
+   The CLI validates the version pattern (4-digit `MAJOR.MINOR.PATCH.MICRO`; 3-digit for repos whose pinned version source uses plain semver) and writes VERSION, the manifest, and the manifest's npm lockfiles (`package-lock.json` / `npm-shrinkwrap.json`) when they already exist — never created. `--regen-digest` additionally reruns the repo's own `scripts/gen-agents-digest.ts` when BOTH that script and a committed `agents-digest/gstack-AGENTS.md` exist (the gstack repo — its digest embeds VERSION and is freshness-gated). Be clear about the trust envelope: in a repo that carries those two files this EXECUTES repo code; /ship accepts that deliberately because Step 5 already ran the same repo's test suite with the same privileges. Check the write output: `agentsDigest: false` means the regen failed — run `bun scripts/gen-agents-digest.ts` and stage the digest with the bump before continuing, or the freshness check stays red. The manifest is resolved as `--package-json-path` → `.gstack/package-json-path` → `./package.json`, so a repo whose only Node package lives in a subdirectory (`web/`, `app/`) is covered by a one-line pin instead of silently getting a VERSION-only bump. npm rejects 4-component versions, so the manifest and lockfiles carry the npm-valid 3-digit translation (`1.67.0.0` → `1.67.0`); VERSION stays the 4-digit source of truth and classify judges drift against the translated form. On a half-write it exits 3 — re-run, and classify will report DRIFT_STALE_PKG for `repair` to fix.
 
 5. **Record the release decision** (durable cross-session memory). The bump level is a real decision the next session should not re-derive blind:
    ```bash
@@ -2542,15 +2580,17 @@ EOF
 The evidence ledger is the mechanical arm of this law. Check it FIRST:
 
 ```bash
-$GSTACK_ROOT/bin/gstack-evidence check --label tests --expect-cmd '<exact tests-lane command from Step 5>' --label vitest --expect-cmd '<exact vitest-lane command from Step 5>' --max-age 24 --allow-paths CHANGELOG.md,VERSION,package.json
+$GSTACK_ROOT/bin/gstack-evidence check --label tests --expect-cmd '<exact tests-lane command from Step 5>' --label vitest --expect-cmd '<exact vitest-lane command from Step 5>' --max-age 24 --allow-paths CHANGELOG.md,VERSION,package.json,agents-digest/gstack-AGENTS.md
 ```
 
 Pass each `--expect-cmd` the exact command string the wrapped Step 5 lane ran —
 that binds FRESH to the real suite (a green `echo ok` recorded under the label
 can never satisfy the check). Residual risk, accepted: `package.json` sits on
 the allow-list because Step 12's version bump writes its version field between
-the test run and this gate; a behavior-changing package.json edit in that
-window would not invalidate evidence. The check is advisory either way.
+the test run and this gate (and, in the gstack repo, regenerates the
+version-stamped `agents-digest/gstack-AGENTS.md`); a behavior-changing
+package.json edit in that window would not invalidate evidence. The check is
+advisory either way.
 
 - **Every line FRESH (exit 0):** the recorded runs were green and the working-tree
   content is identical to what was tested, modulo the allow-listed release files

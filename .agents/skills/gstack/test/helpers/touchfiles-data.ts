@@ -66,6 +66,8 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'review-army-quality-score':    ['review/**', 'scripts/resolvers/review-army.ts', 'test/skill-e2e-review-army.test.ts'],
   'review-army-json-findings':    ['review/**', 'scripts/resolvers/review-army.ts', 'test/skill-e2e-review-army.test.ts'],
   'review-army-red-team':         ['review/**', 'scripts/resolvers/review-army.ts', 'test/skill-e2e-review-army.test.ts'],
+  'review-army-simplification':   ['review/**', 'scripts/resolvers/review-army.ts', 'test/fixtures/review-army-overbuild.js', 'test/fixtures/review-army-lean-complete.js', 'test/skill-e2e-review-army.test.ts'],
+  'review-army-simplification-precision': ['review/**', 'scripts/resolvers/review-army.ts', 'test/fixtures/review-army-overbuild.js', 'test/fixtures/review-army-lean-complete.js', 'test/skill-e2e-review-army.test.ts'],
   'review-army-consensus':        ['review/**', 'scripts/resolvers/review-army.ts', 'test/skill-e2e-review-army.test.ts'],
 
   // Office Hours
@@ -129,6 +131,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // numbered-option lists, multi-phase ordering, idempotency state echo).
   'preamble-script-ab':                        ['bin/gstack-skill-start', 'bin/gstack-skill-end', 'scripts/resolvers/preamble/generate-preamble-bash.ts', 'scripts/resolvers/preamble/generate-brain-sync-block.ts', 'scripts/resolvers/preamble.ts', 'plan-ceo-review/**', 'test/helpers/auq-sdk-capture.ts', 'test/skill-e2e-preamble-script-ab.test.ts'],
   'auq-format-gate':                           ['plan-ceo-review/**', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/preamble/generate-completeness-section.ts', 'scripts/resolvers/preamble.ts', 'test/helpers/auq-sdk-capture.ts', 'test/helpers/session-runner.ts', 'test/helpers/llm-judge.ts', 'test/skill-e2e-ask-user-question-format-compliance.test.ts'],
+  'auq-repetition-cut-ab':                     ['scripts/resolvers/preamble/generate-ask-user-format.ts', 'plan-ceo-review/**', 'test/helpers/auq-sdk-capture.ts', 'test/helpers/llm-judge.ts', 'test/fixtures/auq-pre-cut-plan-ceo-review-SKILL.md', 'test/skill-e2e-auq-repetition-cut-ab.test.ts'],
   'plan-ceo-mode-routing':       ['plan-ceo-review/**', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/preamble.ts', 'test/helpers/claude-pty-runner.ts', 'test/skill-e2e-plan-ceo-mode-routing.test.ts'],
   'plan-design-with-ui-scope':   ['plan-design-review/**', 'test/fixtures/plans/ui-heavy-feature.md', 'test/helpers/claude-pty-runner.ts', 'test/skill-e2e-plan-design-with-ui.test.ts'],
   'budget-regression-pty':       ['test/helpers/eval-store.ts', 'test/skill-budget-regression.test.ts'],
@@ -447,6 +450,38 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     'test/skill-e2e-gbrain-roundtrip-local.test.ts',
   ],
 
+  // WS2 arm benchmark — with-skill vs without-skill agentic arms scored on
+  // the git diff left behind (research instrument, never a release gate).
+  // Fires when the behavioral layer under test (reuse ladder + bounded
+  // closer resolvers), the judge, the fixtures, or the harness change.
+  'arm-benchmark-native-overbuild': [
+    'scripts/resolvers/preamble/generate-search-before-building.ts',
+    'scripts/resolvers/preamble/generate-voice-directive.ts',
+    'test/fixtures/arm-benchmark/**',
+    'test/helpers/llm-judge.ts',
+    'test/helpers/arm-benchmark-harness.ts',
+    'test/skill-e2e-arm-benchmark.test.ts',
+    'ship/SKILL.md',
+  ],
+  'arm-benchmark-crud-endpoint': [
+    'scripts/resolvers/preamble/generate-search-before-building.ts',
+    'scripts/resolvers/preamble/generate-voice-directive.ts',
+    'test/fixtures/arm-benchmark/**',
+    'test/helpers/llm-judge.ts',
+    'test/helpers/arm-benchmark-harness.ts',
+    'test/skill-e2e-arm-benchmark.test.ts',
+    'ship/SKILL.md',
+  ],
+  'arm-benchmark-bugfix-decoys': [
+    'scripts/resolvers/preamble/generate-search-before-building.ts',
+    'scripts/resolvers/preamble/generate-voice-directive.ts',
+    'test/fixtures/arm-benchmark/**',
+    'test/helpers/llm-judge.ts',
+    'test/helpers/arm-benchmark-harness.ts',
+    'test/skill-e2e-arm-benchmark.test.ts',
+    'ship/SKILL.md',
+  ],
+
 };
 
 /**
@@ -499,6 +534,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'review-army-json-findings': 'gate',      // JSON schema compliance
   'review-army-red-team': 'periodic',       // Multi-agent coordination
   'review-army-consensus': 'periodic',      // Multi-specialist agreement
+  'review-army-simplification': 'periodic', // Advisory lens quality benchmark
+  'review-army-simplification-precision': 'periodic', // False-flag noise benchmark
 
   // Office Hours
   'office-hours-spec-review': 'gate',
@@ -552,6 +589,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   //   gate: cheap, deterministic, run on every PR
   //   periodic: long-running or expensive (>$3/run), run weekly
   'preamble-script-ab':                      'periodic',   // Phase 1-3 A/B: script vs inline preamble; demoted post-Phase-3 (OV7)
+  'auq-repetition-cut-ab':                   'periodic',   // AUQ repetition-cut NOT-WORSE gate (passed pre-landing). Periodic runs force EVALS_ALL, so the dep list cannot auto-trigger it — an AUQ format edit carries a MANUAL re-run obligation (bun test test/skill-e2e-auq-repetition-cut-ab.test.ts with EVALS=1 EVALS_TIER=periodic)
   'auq-format-gate':                         'gate',       // ~$0.50/run, SDK capture, single skill probe
   'plan-ceo-mode-routing':     'periodic',   // ~$3/run, deep navigation through 8-12 prior AskUserQuestions
   'plan-design-with-ui-scope': 'gate',       // ~$0.80/run
@@ -764,6 +802,12 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'ios-qa-device': 'periodic',
   // /spec end-to-end PTY pipeline (paid, non-deterministic — periodic-tier).
   'spec-execute': 'periodic',
+
+  // WS2 arm benchmark — periodic: full build-shaped agentic workflows, paid,
+  // non-deterministic by construction (research instrument, not a gate).
+  'arm-benchmark-native-overbuild': 'periodic',
+  'arm-benchmark-crud-endpoint': 'periodic',
+  'arm-benchmark-bugfix-decoys': 'periodic',
 };
 
 /**
