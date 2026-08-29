@@ -22,10 +22,18 @@ ensure_bun() {
 }
 
 ensure_gstack_source() {
-  if [[ -d "${GSTACK_REPO}/.git" ]]; then
-    return 0
-  fi
   mkdir -p "$(dirname "$GSTACK_REPO")"
+  if [[ -d "${GSTACK_REPO}/.git" ]]; then
+    log "Refreshing gstack cache at ${GSTACK_REPO}…"
+    if ! git -C "$GSTACK_REPO" fetch --depth 1 origin HEAD; then
+      log "WARN: fetch failed; re-cloning gstack"
+      rm -rf "$GSTACK_REPO"
+      git clone --depth 1 --single-branch https://github.com/garrytan/gstack.git "$GSTACK_REPO"
+      return
+    fi
+    git -C "$GSTACK_REPO" reset --hard FETCH_HEAD
+    return
+  fi
   log "Cloning gstack into ${GSTACK_REPO}…"
   git clone --depth 1 --single-branch https://github.com/garrytan/gstack.git "$GSTACK_REPO"
 }

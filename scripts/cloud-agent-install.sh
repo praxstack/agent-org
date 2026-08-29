@@ -89,7 +89,7 @@ fi
 if [[ -x "${ROOT}/scripts/install-native-runtimes.sh" ]]; then
   echo "[cloud-agent-install] Installing native skill runtimes (gstack for Cursor)…"
   "${ROOT}/scripts/install-native-runtimes.sh" cursor || {
-    echo "[cloud-agent-install] WARN: native runtime install failed; vendored gstack-* skills still available" >&2
+    echo "[cloud-agent-install] WARN: native gstack runtime unavailable; Cursor gstack skills may be missing or degraded — repo vendored docs remain for Claude/agents paths." >&2
   }
 fi
 

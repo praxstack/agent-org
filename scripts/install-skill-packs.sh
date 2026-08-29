@@ -128,7 +128,8 @@ link_gstack_skill_runtime_assets() {
 
 install_gstack_unified_tree() {
   local dest_root base
-  for dest_root in "${REPO_TARGETS[@]}" "$HOME_CLAUDE" "$HOME_CURSOR" "$HOME_AGENTS"; do
+  # Native ./setup owns ~/.cursor/skills/gstack*; repo + Claude/agents get vendored tree.
+  for dest_root in "${REPO_TARGETS[@]}" "$HOME_CLAUDE" "$HOME_AGENTS"; do
     mkdir -p "${dest_root}/gstack"
     rsync -a --delete \
       --exclude '.git' \
