@@ -61,11 +61,17 @@ bootstrap_repo "$ROOT"
 
 SIBLING="$(cd "${ROOT}/.." && pwd)/agent-org-workspace"
 if [[ -d "$SIBLING" && "$SIBLING" != "$ROOT" ]]; then
-  if needs_skill_install "$SIBLING"; then
+  # Always mirror primary repo skills into sibling (keeps workspace in sync after updates)
+  if [[ -d "${ROOT}/.claude/skills" ]]; then
     mkdir -p "${SIBLING}/.claude/skills" "${SIBLING}/.agents/skills" "${SIBLING}/.agnets/skills"
     rsync -a "${ROOT}/.claude/skills/" "${SIBLING}/.claude/skills/"
     rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agents/skills/"
     rsync -a --delete "${SIBLING}/.claude/skills/" "${SIBLING}/.agnets/skills/"
+    if [[ -f "${ROOT}/.claude/skills/INDEX.txt" ]]; then
+      cp "${ROOT}/.claude/skills/INDEX.txt" "${SIBLING}/.claude/skills/INDEX.txt"
+      cp "${ROOT}/.claude/skills/INDEX.txt" "${SIBLING}/.agents/skills/INDEX.txt"
+      cp "${ROOT}/.claude/skills/INDEX.txt" "${SIBLING}/.agnets/skills/INDEX.txt"
+    fi
   fi
   sync_home_from_repo "$SIBLING"
 fi

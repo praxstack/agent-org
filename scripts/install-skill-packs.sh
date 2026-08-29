@@ -236,7 +236,6 @@ install_compound_engineering() {
 install_awesome_copilot_promoted() {
   local names=(
     acquire-codebase-knowledge
-    agentic-workflows
     agent-governance
     agent-supply-chain
     ai-prompt-engineering-safety-review
