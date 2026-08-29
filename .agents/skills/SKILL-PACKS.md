@@ -8,7 +8,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 |--------|--------|-------|
 | `gstack-*` | [garrytan/gstack](https://github.com/garrytan/gstack) | Slimmed: no iOS, browse binary, gbrain, heavy design assets |
 | `pstack-*` | [cursor/plugins/pstack](https://github.com/cursor/plugins/tree/main/pstack) via [backnotprop/pstack](https://github.com/backnotprop/pstack) | Full workflow + principles |
-| `matt-*` | [mattpocock/skills](https://github.com/mattpocock/skills) | Promoted engineering + productivity set |
+| `matt-*` | [mattpocock/skills](https://github.com/mattpocock/skills) | Full set (excludes deprecated/in-progress) |
 | `superpowers-*` | [obra/superpowers](https://github.com/obra/superpowers) | Full core methodology set |
 | `ctk-*` | [cursor/plugins/cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) | PR/CI/deslop/control-cli |
 | `ralph-loop*` | [cursor/plugins/ralph-loop](https://github.com/cursor/plugins/tree/main/ralph-loop) | Iterative autonomous loops |
@@ -21,6 +21,10 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `browser-*` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) | Real-browser QA after tests |
 | `ce-*` | [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) | Brainstorm → plan → work → review → compound |
 | `gh-*` | [github/awesome-copilot](https://github.com/github/awesome-copilot) | Promoted GitHub/agent workflows (not full 400+ set) |
+| `supabase-*` | [supabase/agent-skills](https://github.com/supabase/agent-skills) | Postgres + Supabase engineering |
+| `cloudflare-*` | [cloudflare/skills](https://github.com/cloudflare/skills) | Workers, DO, Agents SDK |
+| `ms-*` | [microsoft/skills](https://github.com/microsoft/skills) | General dev skills from .github/skills only |
+| `aws-*` | [aws/agent-toolkit-for-aws](https://github.com/aws/agent-toolkit-for-aws) | Core AWS skills cartridge |
 
 See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
 
