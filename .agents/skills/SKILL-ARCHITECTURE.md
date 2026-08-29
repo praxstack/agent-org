@@ -51,7 +51,36 @@ These need harness hooks beyond `SKILL.md` files:
 /add-plugin compound-engineering   → EveryInc/compound-engineering-plugin
 ```
 
-**gstack**: use native `./setup --host cursor` when supported; vendored `gstack-*` skills are the portable fallback.
+**gstack**: vendored `gstack-*` skills ship in-repo; Cloud Agent bootstrap also runs:
+
+```bash
+./scripts/install-native-runtimes.sh cursor
+# or: cd gstack && ./setup --host cursor --no-prefix
+```
+
+That installs `~/.cursor/skills/gstack/` (`bin/`, `lib/`, browse) and regenerates skill docs. Skill folders stay `gstack-plan-ceo-review` etc.; the `name:` field in each `SKILL.md` is `plan-ceo-review` (use `/plan-ceo-review` or search `gstack-plan-ceo-review`).
+
+## Research & freshness layer (vendored)
+
+| Skill | Role |
+|-------|------|
+| `last30days` | Trend radar — verify claims independently |
+| `research-deep` | Structured multi-source research |
+| `vercel-find-skills` | Discover more skills on demand |
+| `nvidia-skill-finder` | NVIDIA domain skill catalog |
+
+## CLI / MCP layers (install per project, not vendored)
+
+```bash
+# Spec / change management
+npm install -g @fission-ai/openspec@latest && openspec init
+
+# Repo architecture graph
+uv tool install graphifyy && graphify cursor install --project
+
+# Formal spec kit (greenfield)
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
+```
 
 **Matt Pocock**: pick **either** native `claude plugins install mattpocock-skills` **or** vendored `matt-*` — not both.
 

@@ -17,7 +17,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `coderabbit-*` | [coderabbitai/skills](https://github.com/coderabbitai/skills) | PR review + autofix workflows |
 | `vercel-*` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills), [find-skills](https://github.com/vercel-labs/skills) | React/web/deploy + skill discovery |
 | `anthropic-*` | [anthropics/skills](https://github.com/anthropics/skills) | Slim dev set: MCP, testing, skill authoring |
-| `tob-*` | [trailofbits/skills](https://github.com/trailofbits/skills) | Security gate: diff review, CodeQL/Semgrep, supply chain |
+| `tob-*` | [trailofbits/skills](https://github.com/trailofbits/skills) | Full security engineering repo vendored |
 | `browser-*` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) | Real-browser QA after tests |
 | `ce-*` | [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) | Brainstorm → plan → work → review → compound |
 | `gh-*` | [github/awesome-copilot](https://github.com/github/awesome-copilot) | Promoted GitHub/agent workflows (not full 400+ set) |
@@ -25,18 +25,33 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `cloudflare-*` | [cloudflare/skills](https://github.com/cloudflare/skills) | Workers, DO, Agents SDK |
 | `ms-*` | [microsoft/skills](https://github.com/microsoft/skills) | General dev skills from .github/skills only |
 | `aws-*` | [aws/agent-toolkit-for-aws](https://github.com/aws/agent-toolkit-for-aws) | Core AWS skills cartridge |
+| `last30days` | [mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill) | Recency radar (X/Reddit/HN/web) |
+| `research-deep` | [24601/agent-deep-research](https://github.com/24601/agent-deep-research) | Structured multi-source research |
+| `hallmark` | [Nutlope/hallmark](https://github.com/Nutlope/hallmark) | Anti-slop UI art direction |
+| `remotion-*` | [remotion-dev/skills](https://github.com/remotion-dev/skills) | Programmatic video |
+| `nvidia-skill-finder` | [NVIDIA/skills](https://github.com/NVIDIA/skills) | NVIDIA skill catalog discovery |
 
 See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
 
-### Skipped / slimmed
+### Native runtimes (not vendored into repo)
+
+After vendoring, Cloud Agent bootstrap runs `scripts/install-native-runtimes.sh`:
+
+- **gstack**: `./setup --host cursor --no-prefix` → `~/.cursor/skills/gstack/` runtime (`bin/`, `lib/`, browse) plus regenerated `gstack-*` skill docs
+
+### Skipped / slimmed / on-demand CLI
 
 - **gstack**: iOS, browse binary, gbrain, heavy design assets
-- **trailofbits**: 80+ total; only promoted security gate set vendored
-- **awesome-copilot**: 400+ total; only general dev workflows vendored
+- **awesome-copilot**: 400+ total; only general dev workflows vendored (gh-*)
 - **anthropics/skills**: creative/office-only packs (pdf, pptx, algorithmic-art)
-- **microsoft/skills**: too large — use `vercel-find-skills` + `npx skills add` on demand
-- **spec-kit**: CLI tool, not SKILL.md — install via `uv tool install specify-cli`
-- **Stack-specific** (install per project): aws/agent-toolkit-for-aws, cloudflare/skills, supabase/agent-skills
+- **microsoft/skills**: 175+ Azure SDK plugins skipped; only .github/skills vendored (ms-*)
+- **aws**: only core-skills cartridge; specialized skills on demand
+- **vercel**: react-native-skills skipped
+- **spec-kit**: CLI — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
+- **openspec**: CLI — `npm install -g @fission-ai/openspec@latest` then `openspec init`
+- **graphify**: CLI/MCP — `uv tool install graphifyy` then `graphify cursor install`
+- **impeccable**: `npx impeccable skills install` (design iteration; install per frontend project)
+- **NVIDIA domain skills**: use `nvidia-skill-finder` or `npx skills add nvidia/skills --skill <name>`
 
 ## Paths
 
