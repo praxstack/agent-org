@@ -339,17 +339,47 @@ export function wallTimeoutForShard(fileCount: number, baseMs = DEFAULT_WALL_TIM
  * slow Playwright files), so packed shards get max(base, predicted x 3) —
  * generous against seed drift, still bounded.
  */
-export function wallTimeoutForPackedShard(predictedMs: number, baseMs = DEFAULT_WALL_TIMEOUT_MS): number {
-  return Math.max(baseMs, Math.ceil(predictedMs * 3));
+export function wallTimeoutForPackedShard(predictedMs: number, baseMs = DEFAULT_WALL_TIMEOUT_MS, fileCount = 0): number {
+  // Predictions transfer badly across machines: the committed duration seed
+  // is recorded on fast CI, and a syscall-supervised sandbox replays those
+  // files 2-4x slower (observed: a 253-file shard predicted ~242s wall-killed
+  // at its 725s predicted-x3 wall while genuinely still progressing). The
+  // packed wall may therefore be LOOSER than the count heuristic, never
+  // tighter — it keeps the per-file floor the runner has always guaranteed.
+  return Math.max(baseMs, Math.ceil(predictedMs * 3), fileCount * PER_FILE_WALL_MS);
 }
 /**
  * Full-suite parallelism: leave RESERVED_CPUS cores for the parent runner +
  * OS, cap at MAX_FULL_SUITE_JOBS — beyond ~6 concurrent bun processes the
  * playwright-heavy shards contend on browser launches instead of finishing
  * sooner (measured on an M-series dev box).
+ *
+ * GSTACK_FREE_JOBS overrides the computed count (the free runner's analogue
+ * of the paid runner's EVALS_JOBS). Exists for syscall-supervised sandboxes:
+ * on Vercel sandboxes, PID 1 (sandbox-init) installs a seccomp filter whose
+ * user-space supervisor saturates under ~6 concurrent bun+playwright shards
+ * and starts returning EACCES from plain file syscalls (measured: 200/200
+ * `git init` probes in fresh mktemp dirs fail with
+ * "Cannot access work tree: Permission denied" while the suite runs, 0/200
+ * when idle — access(dir, X_OK) = EACCES under strace). Fewer shards keep
+ * the supervisor inside its budget. Not clamped by MAX_FULL_SUITE_JOBS so a
+ * beefy box can also raise it deliberately.
  */
 export const MAX_FULL_SUITE_JOBS = 6;
 export const RESERVED_CPUS = 2;
+
+export function fullSuiteJobs(): number {
+  const raw = process.env.GSTACK_FREE_JOBS;
+  if (raw !== undefined && raw !== '') {
+    // Strict digits-only: parseInt would silently truncate "2abc" -> 2 and
+    // "3.7" -> 3, defeating the loud-failure contract the error text claims.
+    if (!/^\d+$/.test(raw.trim()) || Number.parseInt(raw, 10) <= 0) {
+      throw new Error(`GSTACK_FREE_JOBS must be a positive integer, got: ${raw}`);
+    }
+    return Number.parseInt(raw, 10);
+  }
+  return Math.max(1, Math.min(MAX_FULL_SUITE_JOBS, os.cpus().length - RESERVED_CPUS));
+}
 
 /**
  * Files that crash or wedge Bun's --parallel WORKERS but run fine in a plain
@@ -999,6 +1029,22 @@ export interface FreeShardOutcome {
   exitCode: number | null;
   elapsedMs: number;
   groupPid: number | null;
+  /**
+   * Repo-relative files with attributed test failures or crashes, deduped.
+   * Feeds the opt-in flaky retry pass (GSTACK_FREE_RETRY_FLAKY) — empty on
+   * pass, and empty when every failure was unattributed (retry would be
+   * meaningless without knowing what to re-run).
+   */
+  failingFiles: string[];
+  /**
+   * Count of failure evidence the retry pass CANNOT re-run by file: fail
+   * lines seen before any file-chunk header, unhandled errors between tests,
+   * and a truncated run (no terminal summary). Nonzero vetoes the flaky
+   * retry for the whole run — retrying only failingFiles would re-run a
+   * subset and mask the rest as a FLAKY-PASS, re-opening the silent-truncation
+   * hole the strict classifier exists to close.
+   */
+  unattributedFailures: number;
 }
 
 export interface ShardCommand {
@@ -1077,7 +1123,7 @@ export async function runFreeShard(
   // so an unoccupied index must not fail or shift work to a different runner.
   if (files.length === 0) {
     const outcome: FreeShardOutcome = {
-      shard: shardNumber, files: [], status: 'passed', exitCode: 0, elapsedMs: 0, groupPid: null,
+      shard: shardNumber, files: [], status: 'passed', exitCode: 0, elapsedMs: 0, groupPid: null, failingFiles: [], unattributedFailures: 0,
     };
     log(shardEpilogue(outcome, totalShards));
     return outcome;
@@ -1220,11 +1266,20 @@ export async function runFreeShard(
     console.error(`${label} failed with exit code ${exitCode ?? 'signal'}`);
   }
 
+  const report = reporter.report();
+  const failingFiles = status === 'passed' ? [] : [...new Set([
+    ...report.failures.map((f) => f.file).filter((f): f is string => !!f),
+    ...report.crashedFiles,
+  ])];
+  const unattributedFailures = status === 'passed' ? 0
+    : report.failures.filter((f) => !f.file).length
+      + report.unhandledErrors.length
+      + (report.sawTerminalSummary ? 0 : 1);
   const outcome: FreeShardOutcome = {
-    shard: shardNumber, files, status, exitCode, elapsedMs: Date.now() - startedAt, groupPid,
+    shard: shardNumber, files, status, exitCode, elapsedMs: Date.now() - startedAt, groupPid, failingFiles, unattributedFailures,
   };
   log(shardEpilogue(outcome, totalShards));
-  for (const line of buildRunEpilogue(status, reporter.report(), outcome.elapsedMs, logPath)) log(line);
+  for (const line of buildRunEpilogue(status, report, outcome.elapsedMs, logPath)) log(line);
   return outcome;
 }
 
@@ -1369,7 +1424,7 @@ async function main(): Promise<number> {
   // proven spawn semantics, per-shard group-kill, per-shard logs, and a
   // wedge only ever costs its own shard. WORKER_HOSTILE files are moot in
   // process shards (no workers) and fold back into normal assignment.
-  const jobs = Math.max(1, Math.min(MAX_FULL_SUITE_JOBS, os.cpus().length - RESERVED_CPUS));
+  const jobs = fullSuiteJobs();
   // Phase split: tree-mutating tests run AFTER the parallel shards, in one
   // serial shard, so no concurrent shard ever reads a half-regenerated tree.
   const mutators = files.filter((f) => f in TREE_MUTATING);
@@ -1395,7 +1450,7 @@ async function main(): Promise<number> {
       // cost BY DESIGN, so the 5s/file heuristic would undersize a shard
       // holding few expensive files.
       wallTimeoutMs: packed && !options.wallTimeoutExplicit
-        ? wallTimeoutForPackedShard(packed.predictedMs[index], options.wallTimeoutMs)
+        ? wallTimeoutForPackedShard(packed.predictedMs[index], options.wallTimeoutMs, shardFiles.length)
         : shardTimeout(shardFiles.length),
       verbose: options.verbose,
     })),
@@ -1420,6 +1475,48 @@ async function main(): Promise<number> {
         for (const line of dirty.slice(0, 20)) console.error(`[test:free]   ${line}`);
         console.error('[test:free]   restore with: bun run gen:skill-docs (or git checkout -- <paths>)');
       }
+    }
+    outcomes.push(mutatorOutcome);
+  }
+
+  // Opt-in flaky retry (GSTACK_FREE_RETRY_FLAKY=1): when every failure is an
+  // attributed test failure (no timeouts, no unattributed carnage), re-run
+  // just the failing files ONCE in a fresh serial shard. A clean retry
+  // downgrades the run to a loud flaky-pass; a repeat failure stays a
+  // failure. Default OFF: dev boxes should see flakes, not absorb them.
+  // Exists for syscall-supervised sandboxes (see fullSuiteJobs) where a run
+  // lands 0-1 spurious browser-timing failures under an otherwise-green
+  // suite. Capped so a genuinely broken tree never masquerades as flaky.
+  const RETRY_CAP = 5;
+  if (
+    worst !== 0
+    && process.env.GSTACK_FREE_RETRY_FLAKY === '1'
+    && !isTerminationRequested()
+    && outcomes.every((o) => o.status !== 'timed-out')
+  ) {
+    const flakyFiles = [...new Set(outcomes.flatMap((o) => o.failingFiles))]
+      .filter((f): f is string => typeof f === 'string' && f.length > 0);
+    // "Fully attributed" is per-failure, not per-shard: a shard with one
+    // attributed failure PLUS a headerless failure / unhandled error /
+    // truncated run must veto the retry — re-running only failingFiles would
+    // mask the unattributable evidence as a FLAKY-PASS.
+    const allAttributed = outcomes.every((o) => o.status === 'passed'
+      || (o.failingFiles.length > 0 && o.unattributedFailures === 0));
+    if (allAttributed && flakyFiles.length > 0 && flakyFiles.length <= RETRY_CAP) {
+      console.log(`[test:free] flaky-retry: re-running ${flakyFiles.length} failing file(s) once, serially: ${flakyFiles.join(', ')}`);
+      const retryOutcome = await runFreeShard(flakyFiles, totalShards + 1, totalShards + 1, {
+        wallTimeoutMs: shardTimeout(flakyFiles.length),
+        verbose: options.verbose,
+      });
+      if (retryOutcome.status === 'passed') {
+        console.log(`[test:free] FLAKY-PASS — ${flakyFiles.length} file(s) failed once and passed on serial retry: ${flakyFiles.join(', ')}`);
+        console.log('[test:free] treat repeat offenders as real flakes worth fixing, not noise.');
+        worst = 0;
+      } else {
+        console.error('[test:free] flaky-retry FAILED — the failures reproduce serially; not flaky.');
+      }
+    } else {
+      console.log(`[test:free] flaky-retry skipped: ${allAttributed ? `${flakyFiles.length} failing file(s) exceeds cap ${RETRY_CAP}` : 'failures not fully attributed'}.`);
     }
   }
   return worst;

@@ -266,6 +266,10 @@ describe('test-free-shards: strict shard execution', () => {
       log: (l) => lines.push(l),
     });
     expect(outcome.status).toBe('passed');
+    // Mutation-caught gap: bun strips types at runtime, so a missing
+    // failingFiles here feeds undefined into the flaky-retry flatMap.
+    expect(outcome.failingFiles).toEqual([]);
+    expect(outcome.unattributedFailures).toBe(0);
     expect(lines.some((l) => /^\[test:free\] shard 7\/20: 0 files, 0s, pass$/.test(l))).toBe(true);
   });
 
@@ -649,5 +653,16 @@ describe('test-free-shards: duration-aware packing (full-suite LPT)', () => {
     expect(wallTimeoutForPackedShard(120_000)).toBe(Math.max(WALL_BASE_MS, 360_000));
     // Tiny prediction: base still floors it.
     expect(wallTimeoutForPackedShard(1_000)).toBe(WALL_BASE_MS);
+  });
+
+  test('packed walls never undercut the per-file floor (predictions do not transfer across machines)', () => {
+    // The duration seed is recorded on fast CI; a syscall-supervised sandbox
+    // replays the same files 2-4x slower. A 253-file shard predicted at ~242s
+    // got wall-killed at predicted×3 = 725s while genuinely progressing —
+    // the count-based floor (253 × 5s = 1265s) the runner always guaranteed
+    // must survive duration packing. Looser is allowed, tighter is not.
+    expect(wallTimeoutForPackedShard(242_000, WALL_BASE_MS, 253)).toBe(253 * 5_000);
+    // When the prediction is the larger bound, it still wins.
+    expect(wallTimeoutForPackedShard(600_000, WALL_BASE_MS, 10)).toBe(1_800_000);
   });
 });
