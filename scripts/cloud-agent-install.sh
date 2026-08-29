@@ -32,6 +32,7 @@ sync_home_from_repo() {
     rsync -a --delete \
       --exclude 'INDEX.txt' \
       --exclude 'SKILL-PACKS.md' \
+      --exclude 'SKILL-ARCHITECTURE.md' \
       "${src}/" "${dest}/"
   done
   for dest in "${repo_root}/.agents/skills" "${repo_root}/.agnets/skills"; do

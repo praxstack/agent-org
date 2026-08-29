@@ -6,7 +6,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 
 | Prefix | Source | Notes |
 |--------|--------|-------|
-| `gstack-*` | [garrytan/gstack](https://github.com/garrytan/gstack) | Slimmed: no iOS, browse binary, gbrain, heavy design assets |
+| `gstack-*` | [garrytan/gstack](https://github.com/garrytan/gstack) | Slim unified install: `gstack/` tree (bin, scripts) + prefixed `gstack-*` discovery dirs. No iOS, browse binary, gbrain, heavy design assets |
 | `pstack-*` | [cursor/plugins/pstack](https://github.com/cursor/plugins/tree/main/pstack) via [backnotprop/pstack](https://github.com/backnotprop/pstack) | Full workflow + principles |
 | `matt-*` | [mattpocock/skills](https://github.com/mattpocock/skills) | Full set (excludes deprecated/in-progress) |
 | `superpowers-*` | [obra/superpowers](https://github.com/obra/superpowers) | Full core methodology set |
@@ -17,7 +17,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `coderabbit-*` | [coderabbitai/skills](https://github.com/coderabbitai/skills) | PR review + autofix workflows |
 | `vercel-*` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills), [find-skills](https://github.com/vercel-labs/skills) | React/web/deploy + skill discovery |
 | `anthropic-*` | [anthropics/skills](https://github.com/anthropics/skills) | Slim dev set: MCP, testing, skill authoring |
-| `tob-*` | [trailofbits/skills](https://github.com/trailofbits/skills) | Security gate: diff review, CodeQL/Semgrep, supply chain |
+| `tob-*` | [trailofbits/skills](https://github.com/trailofbits/skills) | Full security engineering repo vendored |
 | `browser-*` | [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) | Real-browser QA after tests |
 | `ce-*` | [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) | Brainstorm → plan → work → review → compound |
 | `gh-*` | [github/awesome-copilot](https://github.com/github/awesome-copilot) | Promoted GitHub/agent workflows (not full 400+ set) |
@@ -30,13 +30,13 @@ See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin insta
 
 ### Skipped / slimmed
 
-- **gstack**: iOS, browse binary, gbrain, heavy design assets
-- **trailofbits**: 80+ total; only promoted security gate set vendored
-- **awesome-copilot**: 400+ total; only general dev workflows vendored
+- **gstack**: iOS (`ios-*`), browse binary (`browse`, `open-gstack-browser`, `setup-browser-cookies`), gbrain (`setup-gbrain`, `sync-gbrain`), heavy design (`design-html`, `design-shotgun`, `make-pdf`), benchmarks, scrape, `connect-chrome`, `codex`. Vendored skills use the `gstack-*` prefix (e.g. `gstack-ship`); upstream short names (`ship`, `review`) map to those dirs. The unified `gstack/` directory (with `bin/`, `scripts/`) is installed alongside for runtime helpers — not listed in INDEX.txt.
+- **awesome-copilot**: 400+ total; only general dev workflows vendored (gh-*)
 - **anthropics/skills**: creative/office-only packs (pdf, pptx, algorithmic-art)
-- **microsoft/skills**: too large — use `vercel-find-skills` + `npx skills add` on demand
-- **spec-kit**: CLI tool, not SKILL.md — install via `uv tool install specify-cli`
-- **Stack-specific** (install per project): aws/agent-toolkit-for-aws, cloudflare/skills, supabase/agent-skills
+- **microsoft/skills**: 175+ Azure SDK plugins skipped; only .github/skills vendored (ms-*)
+- **aws**: only core-skills cartridge; specialized skills on demand
+- **vercel**: react-native-skills skipped
+- **spec-kit**: CLI tool — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
 
 ## Paths
 
@@ -52,4 +52,4 @@ Same skill trees are mirrored to:
 ./scripts/install-skill-packs.sh
 ```
 
-Also syncs into `~/.claude/skills`, `~/.cursor/skills`, and `~/.agents/skills` for Cloud Agent / global discovery.
+Also syncs into `~/.claude/skills`, `~/.cursor/skills`, and `~/.agents/skills` for Cloud Agent / global discovery. The `gstack/` infrastructure tree is included in those mirrors.
