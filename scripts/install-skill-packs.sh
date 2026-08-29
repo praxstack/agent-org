@@ -104,7 +104,7 @@ link_gstack_skill_runtime_assets() {
     case "$asset_name" in
       SKILL.md|node_modules|dist|test|*.tmpl) continue ;;
     esac
-    rm -rf "${dst_dir}/${asset_name}"
+    rm -rf "${dst_dir:?}/${asset_name:?}"
     ln -sf "$(cd "$(dirname "$asset")" && pwd)/$(basename "$asset")" "${dst_dir}/${asset_name}"
   done
 }
@@ -179,7 +179,7 @@ install_gstack_prefixed_skills() {
     for dest_root in "${REPO_TARGETS[@]}" "$HOME_CLAUDE" "$HOME_CURSOR" "$HOME_AGENTS"; do
       gstack_abs="$(cd "${dest_root}/gstack" && pwd)"
       skill_abs="${gstack_abs}/${base}"
-      rm -rf "${dest_root}/${link_name}"
+      rm -rf "${dest_root:?}/${link_name:?}"
       mkdir -p "${dest_root}/${link_name}"
       ln -sf "${skill_abs}/SKILL.md" "${dest_root}/${link_name}/SKILL.md"
       link_gstack_skill_runtime_assets "$skill_abs" "${dest_root}/${link_name}"
