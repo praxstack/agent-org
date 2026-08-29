@@ -18,6 +18,13 @@ REPO_TARGETS=(
 
 log() { printf '[skill-packs] %s\n' "$*"; }
 
+# Tracks every skill name installed in this run (for INDEX + prune).
+INSTALLED_SKILLS=()
+
+record_skill() {
+  INSTALLED_SKILLS+=("$1")
+}
+
 need_git_clone() {
   local url="$1" dest="$2"
   if [[ -d "${dest}/.git" ]]; then
@@ -60,6 +67,7 @@ copy_skill_dir() {
       --exclude 'bun.lockb' \
       "${src}/" "${dest_root}/${name}/"
   done
+  record_skill "$name"
 }
 
 ensure_cache() {
@@ -83,6 +91,11 @@ ensure_cache() {
   need_git_clone https://github.com/cloudflare/skills.git "${CACHE}/cloudflare-skills"
   need_git_clone https://github.com/microsoft/skills.git "${CACHE}/microsoft-skills"
   need_git_clone https://github.com/aws/agent-toolkit-for-aws.git "${CACHE}/aws-toolkit"
+  need_git_clone https://github.com/mvanhorn/last30days-skill.git "${CACHE}/last30days"
+  need_git_clone https://github.com/24601/agent-deep-research.git "${CACHE}/agent-deep-research"
+  need_git_clone https://github.com/Nutlope/hallmark.git "${CACHE}/hallmark"
+  need_git_clone https://github.com/remotion-dev/skills.git "${CACHE}/remotion-skills"
+  need_git_clone https://github.com/NVIDIA/skills.git "${CACHE}/nvidia-skills"
 }
 
 install_gstack_slim() {
@@ -290,6 +303,39 @@ install_aws_core() {
   done
 }
 
+install_last30days() {
+  local src="${CACHE}/last30days/skills/last30days"
+  [[ -d "$src" && -f "${src}/SKILL.md" ]] || return 0
+  copy_skill_dir "$src" "last30days"
+}
+
+install_deep_research() {
+  local src="${CACHE}/agent-deep-research"
+  [[ -f "${src}/SKILL.md" ]] || return 0
+  copy_skill_dir "$src" "research-deep"
+}
+
+install_hallmark() {
+  local src="${CACHE}/hallmark/skills/hallmark"
+  [[ -d "$src" && -f "${src}/SKILL.md" ]] || return 0
+  copy_skill_dir "$src" "hallmark"
+}
+
+install_remotion() {
+  local d
+  for d in "${CACHE}/remotion-skills/skills"/*; do
+    [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
+    copy_skill_dir "$d" "remotion-$(basename "$d")"
+  done
+}
+
+install_nvidia_finder() {
+  # Skill discovery for NVIDIA catalog; install domain NVIDIA skills on demand.
+  local src="${CACHE}/nvidia-skills/plugins/nvidia-skills/skills/nvidia-skill-finder"
+  [[ -d "$src" && -f "${src}/SKILL.md" ]] || return 0
+  copy_skill_dir "$src" "nvidia-skill-finder"
+}
+
 install_project_extras() {
   # High-value for agent-org: gated loops, CLI control, PR/review workflows
   # cursor-team-kit
@@ -327,23 +373,34 @@ install_project_extras() {
 }
 
 prune_stale_skills() {
-  local index="${ROOT}/.claude/skills/INDEX.txt"
   local dest_root skill_dir skill_name
-  [[ -f "$index" ]] || return 0
+  local -A keep=()
+  local name
+  for name in "${INSTALLED_SKILLS[@]}"; do
+    keep["$name"]=1
+  done
   for dest_root in "${REPO_TARGETS[@]}"; do
     [[ -d "$dest_root" ]] || continue
     for skill_dir in "${dest_root}"/*; do
       [[ -d "$skill_dir" ]] || continue
       skill_name="$(basename "$skill_dir")"
       case "$skill_name" in
-        INDEX.txt|SKILL-PACKS.md) continue ;;
+        INDEX.txt|SKILL-PACKS.md|SKILL-ARCHITECTURE.md) continue ;;
       esac
-      if ! grep -qxF "$skill_name" "$index"; then
+      if [[ -z "${keep[$skill_name]:-}" ]]; then
         log "prune stale skill: ${skill_name}"
         rm -rf "$skill_dir"
       fi
     done
   done
+}
+
+write_index() {
+  local index="${ROOT}/.claude/skills/INDEX.txt"
+  mkdir -p "$(dirname "$index")"
+  printf '%s\n' "${INSTALLED_SKILLS[@]}" | sort -u > "$index"
+  cp "$index" "${ROOT}/.agents/skills/INDEX.txt"
+  cp "$index" "${ROOT}/.agnets/skills/INDEX.txt"
 }
 
 write_manifest() {
@@ -377,10 +434,21 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `cloudflare-*` | [cloudflare/skills](https://github.com/cloudflare/skills) | Workers, DO, Agents SDK |
 | `ms-*` | [microsoft/skills](https://github.com/microsoft/skills) | General dev skills from .github/skills only |
 | `aws-*` | [aws/agent-toolkit-for-aws](https://github.com/aws/agent-toolkit-for-aws) | Core AWS skills cartridge |
+| `last30days` | [mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill) | Recency radar (X/Reddit/HN/web) |
+| `research-deep` | [24601/agent-deep-research](https://github.com/24601/agent-deep-research) | Structured multi-source research |
+| `hallmark` | [Nutlope/hallmark](https://github.com/Nutlope/hallmark) | Anti-slop UI art direction |
+| `remotion-*` | [remotion-dev/skills](https://github.com/remotion-dev/skills) | Programmatic video |
+| `nvidia-skill-finder` | [NVIDIA/skills](https://github.com/NVIDIA/skills) | NVIDIA skill catalog discovery |
 
 See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
 
-### Skipped / slimmed
+### Native runtimes (not vendored into repo)
+
+After vendoring, Cloud Agent bootstrap runs `scripts/install-native-runtimes.sh`:
+
+- **gstack**: `./setup --host cursor --no-prefix` → `~/.cursor/skills/gstack/` runtime (`bin/`, `lib/`, browse) plus regenerated `gstack-*` skill docs
+
+### Skipped / slimmed / on-demand CLI
 
 - **gstack**: iOS, browse binary, gbrain, heavy design assets
 - **awesome-copilot**: 400+ total; only general dev workflows vendored (gh-*)
@@ -388,7 +456,11 @@ See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin insta
 - **microsoft/skills**: 175+ Azure SDK plugins skipped; only .github/skills vendored (ms-*)
 - **aws**: only core-skills cartridge; specialized skills on demand
 - **vercel**: react-native-skills skipped
-- **spec-kit**: CLI tool — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
+- **spec-kit**: CLI — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
+- **openspec**: CLI — `npm install -g @fission-ai/openspec@latest` then `openspec init`
+- **graphify**: CLI/MCP — `uv tool install graphifyy` then `graphify cursor install`
+- **impeccable**: `npx impeccable skills install` (design iteration; install per frontend project)
+- **NVIDIA domain skills**: use `nvidia-skill-finder` or `npx skills add nvidia/skills --skill <name>`
 
 ## Paths
 
@@ -468,17 +540,25 @@ main() {
   install_microsoft_selective
   log "Installing AWS core skills…"
   install_aws_core
+  log "Installing last30days…"
+  install_last30days
+  log "Installing deep research…"
+  install_deep_research
+  log "Installing Hallmark UI art direction…"
+  install_hallmark
+  log "Installing Remotion skills…"
+  install_remotion
+  log "Installing NVIDIA skill finder…"
+  install_nvidia_finder
   log "Installing project extras…"
   install_project_extras
   write_manifest
+  write_index
+  prune_stale_skills
 
   local count
   count="$(find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
   log "Done. ${count} skill dirs under .claude/skills/"
-  find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | sort > "${ROOT}/.claude/skills/INDEX.txt"
-  cp "${ROOT}/.claude/skills/INDEX.txt" "${ROOT}/.agents/skills/INDEX.txt"
-  cp "${ROOT}/.claude/skills/INDEX.txt" "${ROOT}/.agnets/skills/INDEX.txt"
-  prune_stale_skills
 }
 
 main "$@"

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Native skill runtimes that need harness setup beyond vendored SKILL.md copies.
+# Idempotent. Run after install-skill-packs.sh (or after sync_home_from_repo).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CACHE="${SKILL_PACK_CACHE:-/tmp/skill-packs}"
+GSTACK_REPO="${GSTACK_REPO:-${CACHE}/gstack}"
+
+log() { printf '[native-runtimes] %s\n' "$*" >&2; }
+
+ensure_bun() {
+  if command -v bun >/dev/null 2>&1; then
+    return 0
+  fi
+  log "Installing bun (required for gstack native setup)…"
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="${HOME}/.bun/bin:${PATH}"
+  if ! command -v bun >/dev/null 2>&1; then
+    log "ERROR: bun install failed"
+    exit 1
+  fi
+}
+
+ensure_gstack_source() {
+  if [[ -d "${GSTACK_REPO}/.git" ]]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$GSTACK_REPO")"
+  log "Cloning gstack into ${GSTACK_REPO}…"
+  git clone --depth 1 --single-branch https://github.com/garrytan/gstack.git "$GSTACK_REPO"
+}
+
+install_gstack_cursor() {
+  ensure_bun
+  ensure_gstack_source
+  log "Running gstack ./setup --host cursor --no-prefix (native runtime + skills)…"
+  (
+    cd "$GSTACK_REPO"
+    ./setup --host cursor --no-prefix -q
+  )
+  if [[ -d "${HOME}/.cursor/skills/gstack/bin" ]]; then
+    log "gstack runtime OK: ${HOME}/.cursor/skills/gstack/bin"
+  else
+    log "WARN: gstack runtime root missing after setup"
+    exit 1
+  fi
+}
+
+main() {
+  local target="${1:-cursor}"
+  case "$target" in
+    cursor)
+      install_gstack_cursor
+      ;;
+    all|cursor+gstack)
+      install_gstack_cursor
+      ;;
+    *)
+      log "Unknown target: $target (use: cursor)"
+      exit 1
+      ;;
+  esac
+  log "Native runtime install complete."
+}
+
+main "$@"
