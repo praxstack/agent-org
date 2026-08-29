@@ -85,21 +85,111 @@ ensure_cache() {
   need_git_clone https://github.com/aws/agent-toolkit-for-aws.git "${CACHE}/aws-toolkit"
 }
 
-install_gstack_slim() {
-  # Slim: skip iOS, browse binary toolchain, heavy design assets, gbrain sync
-  local d base
+gstack_skill_skipped() {
+  # Returns 0 when a gstack skill dir should NOT be vendored (slim install).
+  case "$1" in
+    ios-*|browse|open-gstack-browser|setup-browser-cookies|setup-gbrain|sync-gbrain|make-pdf|design-html|design-shotgun|benchmark|benchmark-models|scrape|extension|connect-chrome|codex)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+link_gstack_skill_runtime_assets() {
+  # Mirror gstack/setup's runtime-asset linking for prefixed discovery dirs.
+  local src_dir="$1" dst_dir="$2" asset asset_name
+  for asset in "$src_dir"/*; do
+    [[ -e "$asset" ]] || continue
+    asset_name="$(basename "$asset")"
+    case "$asset_name" in
+      SKILL.md|node_modules|dist|test|*.tmpl) continue ;;
+    esac
+    rm -rf "${dst_dir}/${asset_name}"
+    ln -sf "$(cd "$(dirname "$asset")" && pwd)/$(basename "$asset")" "${dst_dir}/${asset_name}"
+  done
+}
+
+install_gstack_unified_tree() {
+  local dest_root base
+  for dest_root in "${REPO_TARGETS[@]}" "$HOME_CLAUDE" "$HOME_CURSOR" "$HOME_AGENTS"; do
+    mkdir -p "${dest_root}/gstack"
+    rsync -a --delete \
+      --exclude '.git' \
+      --exclude 'node_modules' \
+      --exclude 'browse/dist' \
+      --exclude 'browse/node_modules' \
+      --exclude 'design/dist' \
+      --exclude 'make-pdf/dist' \
+      --exclude 'ios-*/' \
+      --exclude 'browse/' \
+      --exclude 'open-gstack-browser/' \
+      --exclude 'setup-browser-cookies/' \
+      --exclude 'setup-gbrain/' \
+      --exclude 'sync-gbrain/' \
+      --exclude 'make-pdf/' \
+      --exclude 'design-html/' \
+      --exclude 'design-shotgun/' \
+      --exclude 'benchmark/' \
+      --exclude 'benchmark-models/' \
+      --exclude 'scrape/' \
+      --exclude 'extension/' \
+      --exclude 'connect-chrome/' \
+      --exclude 'codex/' \
+      --exclude 'contrib/' \
+      --exclude 'docs/' \
+      --exclude 'agents/' \
+      --exclude 'claude/' \
+      --exclude 'browser-skills/' \
+      --exclude '.agents/' \
+      --exclude '.cursor/' \
+      --exclude '.factory/' \
+      --exclude '.opencode/' \
+      --exclude '.tmp-bun-bin/' \
+      --exclude '*.png' \
+      --exclude '*.jpg' \
+      --exclude '*.gif' \
+      --exclude '*.mp4' \
+      --exclude '*.wasm' \
+      --exclude '*.dylib' \
+      --exclude '*.so' \
+      "${CACHE}/gstack/" "${dest_root}/gstack/"
+    # Drop skipped skills and dangling aliases left by upstream symlinks.
+    for base in "${dest_root}/gstack"/*; do
+      [[ -e "$base" || -L "$base" ]] || continue
+      base="$(basename "$base")"
+      if gstack_skill_skipped "$base"; then
+        rm -rf "${dest_root}/gstack/${base}"
+      fi
+    done
+  done
+}
+
+install_gstack_prefixed_skills() {
+  # Top-level gstack-* dirs for discovery; unified tree lives at gstack/.
+  local d base link_name dest_root gstack_abs skill_abs
   for d in "${CACHE}/gstack"/*; do
     [[ -d "$d" ]] || continue
     base="$(basename "$d")"
     [[ -f "${d}/SKILL.md" ]] || continue
-    case "$base" in
-      ios-*|browse|open-gstack-browser|setup-browser-cookies|setup-gbrain|sync-gbrain|make-pdf|design-html|design-shotgun|benchmark|benchmark-models|scrape|extension|contrib|docs|bin|agents|claude|codex|gstack|browser-skills|connect-chrome)
-        log "gstack skip: $base"
-        continue
-        ;;
-    esac
-    copy_skill_dir "$d" "gstack-${base}"
+    if gstack_skill_skipped "$base"; then
+      log "gstack skip: $base"
+      continue
+    fi
+    link_name="gstack-${base}"
+    for dest_root in "${REPO_TARGETS[@]}" "$HOME_CLAUDE" "$HOME_CURSOR" "$HOME_AGENTS"; do
+      gstack_abs="$(cd "${dest_root}/gstack" && pwd)"
+      skill_abs="${gstack_abs}/${base}"
+      rm -rf "${dest_root}/${link_name}"
+      mkdir -p "${dest_root}/${link_name}"
+      ln -sf "${skill_abs}/SKILL.md" "${dest_root}/${link_name}/SKILL.md"
+      link_gstack_skill_runtime_assets "$skill_abs" "${dest_root}/${link_name}"
+    done
   done
+}
+
+install_gstack_slim() {
+  install_gstack_unified_tree
+  install_gstack_prefixed_skills
 }
 
 install_superpowers() {
@@ -336,7 +426,7 @@ prune_stale_skills() {
       [[ -d "$skill_dir" ]] || continue
       skill_name="$(basename "$skill_dir")"
       case "$skill_name" in
-        INDEX.txt|SKILL-PACKS.md) continue ;;
+        INDEX.txt|SKILL-PACKS.md|SKILL-ARCHITECTURE.md|gstack) continue ;;
       esac
       if ! grep -qxF "$skill_name" "$index"; then
         log "prune stale skill: ${skill_name}"
@@ -358,7 +448,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 
 | Prefix | Source | Notes |
 |--------|--------|-------|
-| `gstack-*` | [garrytan/gstack](https://github.com/garrytan/gstack) | Slimmed: no iOS, browse binary, gbrain, heavy design assets |
+| `gstack-*` | [garrytan/gstack](https://github.com/garrytan/gstack) | Slim unified install: `gstack/` tree (bin, scripts) + prefixed `gstack-*` discovery dirs. No iOS, browse binary, gbrain, heavy design assets |
 | `pstack-*` | [cursor/plugins/pstack](https://github.com/cursor/plugins/tree/main/pstack) via [backnotprop/pstack](https://github.com/backnotprop/pstack) | Full workflow + principles |
 | `matt-*` | [mattpocock/skills](https://github.com/mattpocock/skills) | Full set (excludes deprecated/in-progress) |
 | `superpowers-*` | [obra/superpowers](https://github.com/obra/superpowers) | Full core methodology set |
@@ -382,7 +472,7 @@ See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin insta
 
 ### Skipped / slimmed
 
-- **gstack**: iOS, browse binary, gbrain, heavy design assets
+- **gstack**: iOS (`ios-*`), browse binary (`browse`, `open-gstack-browser`, `setup-browser-cookies`), gbrain (`setup-gbrain`, `sync-gbrain`), heavy design (`design-html`, `design-shotgun`, `make-pdf`), benchmarks, scrape, `connect-chrome`, `codex`. Vendored skills use the `gstack-*` prefix (e.g. `gstack-ship`); upstream short names (`ship`, `review`) map to those dirs. The unified `gstack/` directory (with `bin/`, `scripts/`) is installed alongside for runtime helpers — not listed in INDEX.txt.
 - **awesome-copilot**: 400+ total; only general dev workflows vendored (gh-*)
 - **anthropics/skills**: creative/office-only packs (pdf, pptx, algorithmic-art)
 - **microsoft/skills**: 175+ Azure SDK plugins skipped; only .github/skills vendored (ms-*)
@@ -404,7 +494,7 @@ Same skill trees are mirrored to:
 ./scripts/install-skill-packs.sh
 ```
 
-Also syncs into `~/.claude/skills`, `~/.cursor/skills`, and `~/.agents/skills` for Cloud Agent / global discovery.
+Also syncs into `~/.claude/skills`, `~/.cursor/skills`, and `~/.agents/skills` for Cloud Agent / global discovery. The `gstack/` infrastructure tree is included in those mirrors.
 MANIFEST
   # Mirror manifest
   for dest_root in "${ROOT}/.agents/skills" "${ROOT}/.agnets/skills"; do
@@ -473,9 +563,9 @@ main() {
   write_manifest
 
   local count
-  count="$(find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-  log "Done. ${count} skill dirs under .claude/skills/"
-  find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | sort > "${ROOT}/.claude/skills/INDEX.txt"
+  count="$(find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d ! -name 'gstack' | wc -l | tr -d ' ')"
+  log "Done. ${count} skill dirs under .claude/skills/ (plus gstack/ infrastructure)"
+  find "${ROOT}/.claude/skills" -mindepth 1 -maxdepth 1 -type d ! -name 'gstack' | sed 's|.*/||' | sort > "${ROOT}/.claude/skills/INDEX.txt"
   cp "${ROOT}/.claude/skills/INDEX.txt" "${ROOT}/.agents/skills/INDEX.txt"
   cp "${ROOT}/.claude/skills/INDEX.txt" "${ROOT}/.agnets/skills/INDEX.txt"
   prune_stale_skills
