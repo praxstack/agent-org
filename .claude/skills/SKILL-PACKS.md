@@ -30,6 +30,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `hallmark` | [Nutlope/hallmark](https://github.com/Nutlope/hallmark) | Anti-slop UI art direction |
 | `remotion-*` | [remotion-dev/skills](https://github.com/remotion-dev/skills) | Programmatic video |
 | `nvidia-skill-finder` | [NVIDIA/skills](https://github.com/NVIDIA/skills) | NVIDIA skill catalog discovery |
+| `prax-*` | [praxstack/skills-and-personas](https://github.com/praxstack/skills-and-personas) | 38-skill portfolio (`new-skills/`) + teach-pro-max, superimprove, coding-agent-leadership-principles, cross-agent-handoff |
 
 See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
 
@@ -52,6 +53,8 @@ After vendoring, Cloud Agent bootstrap runs `scripts/install-native-runtimes.sh`
 - **graphify**: CLI/MCP — `uv tool install graphifyy` then `graphify cursor install`
 - **impeccable**: `npx impeccable skills install` (design iteration; install per frontend project)
 - **NVIDIA domain skills**: use `nvidia-skill-finder` or `npx skills add nvidia/skills --skill <name>`
+- **praxstack/skills-and-personas**: legacy `skills/` tree (105 skills) not vendored — use `new-skills/` portfolio via `prax-*` prefix or `npx skills add praxstack/skills-and-personas --skill <name>`
+- **Personas / paste prompts**: `personas/`, `md-personas/`, `prompts/high-end-operator/`, `prompts/project-alignment/` — reference material; see SKILL-ARCHITECTURE.md
 
 ## Paths
 

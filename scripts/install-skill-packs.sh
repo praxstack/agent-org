@@ -100,6 +100,7 @@ ensure_cache() {
   need_git_clone https://github.com/Nutlope/hallmark.git "${CACHE}/hallmark"
   need_git_clone https://github.com/remotion-dev/skills.git "${CACHE}/remotion-skills"
   need_git_clone https://github.com/NVIDIA/skills.git "${CACHE}/nvidia-skills"
+  need_git_clone https://github.com/praxstack/skills-and-personas.git "${CACHE}/skills-and-personas"
 }
 
 gstack_skill_skipped() {
@@ -436,6 +437,33 @@ install_nvidia_finder() {
   copy_skill_dir "$src" "nvidia-skill-finder"
 }
 
+install_prax_portfolio() {
+  # Canonical 38-skill portfolio from praxstack/skills-and-personas/new-skills/
+  local d base
+  for d in "${CACHE}/skills-and-personas/new-skills"/*; do
+    [[ -d "$d" && -f "${d}/SKILL.md" ]] || continue
+    base="$(basename "$d")"
+    [[ "$base" == _audit ]] && continue
+    copy_skill_dir "$d" "prax-${base}"
+  done
+}
+
+install_prax_extra_skills() {
+  # Legacy skills/ entries not duplicated in new-skills/ (public distributions)
+  local names=(
+    teach-pro-max
+    superimprove
+    coding-agent-leadership-principles
+    cross-agent-handoff
+  )
+  local name src
+  for name in "${names[@]}"; do
+    src="${CACHE}/skills-and-personas/skills/${name}"
+    [[ -d "$src" && -f "${src}/SKILL.md" ]] || continue
+    copy_skill_dir "$src" "prax-${name}"
+  done
+}
+
 install_project_extras() {
   # High-value for agent-org: gated loops, CLI control, PR/review workflows
   # cursor-team-kit
@@ -539,6 +567,7 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `hallmark` | [Nutlope/hallmark](https://github.com/Nutlope/hallmark) | Anti-slop UI art direction |
 | `remotion-*` | [remotion-dev/skills](https://github.com/remotion-dev/skills) | Programmatic video |
 | `nvidia-skill-finder` | [NVIDIA/skills](https://github.com/NVIDIA/skills) | NVIDIA skill catalog discovery |
+| `prax-*` | [praxstack/skills-and-personas](https://github.com/praxstack/skills-and-personas) | 38-skill portfolio (`new-skills/`) + teach-pro-max, superimprove, coding-agent-leadership-principles, cross-agent-handoff |
 
 See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
 
@@ -561,6 +590,8 @@ After vendoring, Cloud Agent bootstrap runs `scripts/install-native-runtimes.sh`
 - **graphify**: CLI/MCP — `uv tool install graphifyy` then `graphify cursor install`
 - **impeccable**: `npx impeccable skills install` (design iteration; install per frontend project)
 - **NVIDIA domain skills**: use `nvidia-skill-finder` or `npx skills add nvidia/skills --skill <name>`
+- **praxstack/skills-and-personas**: legacy `skills/` tree (105 skills) not vendored — use `new-skills/` portfolio via `prax-*` prefix or `npx skills add praxstack/skills-and-personas --skill <name>`
+- **Personas / paste prompts**: `personas/`, `md-personas/`, `prompts/high-end-operator/`, `prompts/project-alignment/` — reference material; see SKILL-ARCHITECTURE.md
 
 ## Paths
 
@@ -652,6 +683,10 @@ main() {
   install_nvidia_finder
   log "Installing project extras…"
   install_project_extras
+  log "Installing praxstack skills-and-personas (portfolio)…"
+  install_prax_portfolio
+  log "Installing praxstack extra public skills…"
+  install_prax_extra_skills
   write_manifest
   write_index
   prune_stale_skills
