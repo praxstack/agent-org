@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coding Agent Leadership"
+  short_description: "Set a trustworthy engineering operating floor"
+  default_prompt: "Use $coding-agent-leadership-principles to execute this engineering task with ownership, scoped authority, and reproducible verification."

@@ -25,10 +25,22 @@ Vendored by `scripts/install-skill-packs.sh` for Claude Code / Cursor / Agents.
 | `cloudflare-*` | [cloudflare/skills](https://github.com/cloudflare/skills) | Workers, DO, Agents SDK |
 | `ms-*` | [microsoft/skills](https://github.com/microsoft/skills) | General dev skills from .github/skills only |
 | `aws-*` | [aws/agent-toolkit-for-aws](https://github.com/aws/agent-toolkit-for-aws) | Core AWS skills cartridge |
+| `last30days` | [mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill) | Recency radar (X/Reddit/HN/web) |
+| `research-deep` | [24601/agent-deep-research](https://github.com/24601/agent-deep-research) | Structured multi-source research |
+| `hallmark` | [Nutlope/hallmark](https://github.com/Nutlope/hallmark) | Anti-slop UI art direction |
+| `remotion-*` | [remotion-dev/skills](https://github.com/remotion-dev/skills) | Programmatic video |
+| `nvidia-skill-finder` | [NVIDIA/skills](https://github.com/NVIDIA/skills) | NVIDIA skill catalog discovery |
+| `prax-*` | [praxstack/skills-and-personas](https://github.com/praxstack/skills-and-personas) | 38-skill portfolio (`new-skills/`) + teach-pro-max, superimprove, coding-agent-leadership-principles, cross-agent-handoff |
 
 See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin installs.
 
-### Skipped / slimmed
+### Native runtimes (not vendored into repo)
+
+After vendoring, Cloud Agent bootstrap runs `scripts/install-native-runtimes.sh`:
+
+- **gstack**: `./setup --host cursor --no-prefix` → `~/.cursor/skills/gstack/` runtime (`bin/`, `lib/`, browse) plus regenerated `gstack-*` skill docs
+
+### Skipped / slimmed / on-demand CLI
 
 - **gstack**: iOS (`ios-*`), browse binary (`browse`, `open-gstack-browser`, `setup-browser-cookies`), gbrain (`setup-gbrain`, `sync-gbrain`), heavy design (`design-html`, `design-shotgun`, `make-pdf`), benchmarks, scrape, `connect-chrome`, `codex`. Vendored skills use the `gstack-*` prefix (e.g. `gstack-ship`); upstream short names (`ship`, `review`) map to those dirs. The unified `gstack/` directory (with `bin/`, `scripts/`) is installed alongside for runtime helpers — not listed in INDEX.txt.
 - **awesome-copilot**: 400+ total; only general dev workflows vendored (gh-*)
@@ -36,7 +48,13 @@ See `SKILL-ARCHITECTURE.md` for the recommended pipeline and native plugin insta
 - **microsoft/skills**: 175+ Azure SDK plugins skipped; only .github/skills vendored (ms-*)
 - **aws**: only core-skills cartridge; specialized skills on demand
 - **vercel**: react-native-skills skipped
-- **spec-kit**: CLI tool — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
+- **spec-kit**: CLI — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
+- **openspec**: CLI — `npm install -g @fission-ai/openspec@latest` then `openspec init`
+- **graphify**: CLI/MCP — `uv tool install graphifyy` then `graphify cursor install`
+- **impeccable**: `npx impeccable skills install` (design iteration; install per frontend project)
+- **NVIDIA domain skills**: use `nvidia-skill-finder` or `npx skills add nvidia/skills --skill <name>`
+- **praxstack/skills-and-personas**: legacy `skills/` tree (105 skills) not vendored — use `new-skills/` portfolio via `prax-*` prefix or `npx skills add praxstack/skills-and-personas --skill <name>`
+- **Personas / paste prompts**: `personas/`, `md-personas/`, `prompts/high-end-operator/`, `prompts/project-alignment/` — reference material; see SKILL-ARCHITECTURE.md
 
 ## Paths
 
@@ -52,4 +70,4 @@ Same skill trees are mirrored to:
 ./scripts/install-skill-packs.sh
 ```
 
-Also syncs into `~/.claude/skills`, `~/.cursor/skills`, and `~/.agents/skills` for Cloud Agent / global discovery. The `gstack/` infrastructure tree is included in those mirrors.
+Also syncs into `~/.claude/skills`, `~/.cursor/skills`, and `~/.agents/skills` for Cloud Agent / global discovery. The `gstack/` infrastructure tree is included in those mirrors (except Cursor `gstack*` paths, which native setup owns).

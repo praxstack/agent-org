@@ -1,0 +1,4 @@
+interface:
+  display_name: "SuperImprove"
+  short_description: "Run a bounded evidence-first improvement loop"
+  default_prompt: "Use $superimprove to audit and improve this repository within an explicit budget, preserving user work and proving every accepted change."

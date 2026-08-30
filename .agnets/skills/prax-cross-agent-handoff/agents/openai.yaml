@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cross-Agent Handoff"
+  short_description: "Transfer work with evidence and authority intact"
+  default_prompt: "Use $cross-agent-handoff to prepare a precise, privacy-safe, independently verifiable handoff for the next agent."
